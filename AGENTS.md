@@ -1,41 +1,29 @@
-# figma-make-app
+# Naga Smart Parking
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+This repository now contains the Next.js/PostgreSQL parking system. The prior Vite/Figma Make implementation remains in Git history.
 
-## Development Server
+## Active application
 
-A Vite development server is **already running** on `$PORT` (default 8443). You don't need to start it manually.
+- `App.tsx` loads `ParkingApp.tsx`; Next.js routes are under `app/`.
+- `kiosk/`, `exit/` and `admin/` contain the three station interfaces.
+- `app/api/system/route.ts` is the active API. Legacy API routes return 410.
+- `server/engine.ts`, `server/access.ts` and `server/validation.ts` implement authorized commands.
+- `server/repository.ts` persists state; `server/schema.sql` is the active schema.
+- `store/reporting.ts` shares reporting calculations across screens and exports.
+- Global production styles are in `app/globals.css`; use the existing Tailwind v4 theme and system fonts.
 
-- Preview URL: The user can access the running app through the preview panel
-- Hot reload: Changes to source files are reflected immediately
+## Development and checks
 
-## Project Structure
+Use Node.js 24, npm and PostgreSQL. Configure private values using `.env.local` and the placeholders in `.env.example`. Never commit credentials, TLS private keys, database dumps or `.runtime/` files.
 
-This is the canonical project structure. Start with task-relevant files below. Only follow imports or inspect other files when required, when a documented path is missing, or when the repository contradicts this guide.
+Run `npx tsc --noEmit --incremental false`, `npm test` and `npm run build` for code validation. Tests require PostgreSQL and create isolated test databases. Run browser suites sequentially because they share port 3102: `test:quality`, `test:reports`, `test:reliability` and `test:rehearsal`. They require Chrome and Playwright; `PLAYWRIGHT_MODULE` can point to an available Playwright package. The rehearsal also requires a verified backup.
 
-- `src/main.tsx` - React entrypoint; imports `src/index.css` and mounts `src/App.tsx` into the `#root` element
-- `src/App.tsx` - Primary application component and the usual starting point for UI work
-- `src/index.css` - Global CSS entrypoint and Tailwind CSS v4 import
-- `index.html` - Vite HTML shell containing the `#root` element and loading `src/main.tsx`
-- `package.json` - Project dependencies and the Vite build, development, preview, and formatting scripts
-- `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
-- `.mise.toml` - Toolchain versions for Node.js and pnpm
+`npm run thesis:check` checks readiness without changing records. `npm run thesis:start` starts the configured database and production app. Do not assume a server is already running or that yesterday's phone IP still applies.
 
-## Dependencies
+Preserve the working demonstration database and credentials. Use isolated data for destructive tests; stop only the test cluster created by the test. Do not initialize or reset the demonstration cluster to fix a connection problem.
 
-- Runtime: React 19 and React DOM 19
-- Styling: Tailwind CSS v4 with the `@tailwindcss/vite` plugin
-- Build tooling: Vite 8, TypeScript 5.7, and `@vitejs/plugin-react`
-- Formatting: oxfmt
+## Scope and evidence
 
-## Styling
+The supported demonstration uses one laptop, Android and one shared exit terminal. Digital payments are manually confirmed records, not payment-gateway transfers. Reporting uses Asia/Manila payment dates; later corrections revise the original period. See `docs/REPORTING.md` for definitions.
 
-This project uses **Tailwind CSS v4** through the `@tailwindcss/vite` plugin configured in `vite.config.ts`. `src/index.css` imports Tailwind with `@import 'tailwindcss';`. Use Tailwind utility classes directly in JSX and put global CSS or Tailwind v4 theme customization in `src/index.css`. This scaffold does not need a Tailwind config file or PostCSS config.
-
-`src/main.tsx` imports `src/index.css`, so global font wiring belongs in `src/index.css`. Keep CSS `@import` statements first, then add any `@font-face` rules and font-family defaults there.
-
-## Code quality
-
-- Use double quotes for strings containing apostrophes (`"We're here to help"`), or escape them in single-quoted strings. An unescaped apostrophe in a single-quoted string breaks the build.
-- Ensure JSX tags are closed and braces are balanced.
-- Export components as default exports.
+Current validation and remaining human checks are in `docs/BALANCED-UPGRADE.md`. Browser emulation and automated app restarts do not substitute for physical phone scanning, a user-operated laptop reboot or timed spoken rehearsals.

@@ -1,0 +1,184 @@
+{
+  "executedAt": "2026-11-18T02:02:10.389Z",
+  "isolatedDatabase": true,
+  "checks": [
+    "All nine administrator pages fit 1280px, 390px and 320px viewports",
+    "Dialog focus stays inside, Escape closes, and focus returns to its trigger",
+    "Station switcher supports arrow keys and Escape with focus restoration",
+    "Attendant menu supports keyboard navigation and Escape focus restoration; skip link focuses main content",
+    "Real scanner decodes a synthetic camera QR frame and stops its video track",
+    "Expired checkout refreshes safely; malformed cash input cannot be confirmed",
+    "Laptop kiosk to phone-sized cash payment records once and releases the space",
+    "Supervisor UI voids and reopens; repayment leaves one effective payment and one completed session",
+    "Camera denial has clear guidance; manual lookup detects an already-paid ticket without charging",
+    "Refund UI rejects fractional centavos and saves the exact authorized refund",
+    "Manual lookup and recorded digital-payment UI save one payment with its reference",
+    "Phone-sized browser reports disconnection and automatically reconnects",
+    "Kiosk ticket and attendant dashboard fit laptop, 390px and 320px widths",
+    "No browser exceptions or external font requests"
+  ],
+  "layouts": [
+    {
+      "route": "/admin",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/map",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/slots",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/sessions",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/rates",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/transactions",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/reports",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/attendants",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/settings",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/map",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/slots",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/sessions",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/rates",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/transactions",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/reports",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/attendants",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/settings",
+      "width": 390,
+      "scrollWidth": 390,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/map",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/slots",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/sessions",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/rates",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/transactions",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/reports",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/attendants",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    },
+    {
+      "route": "/admin/settings",
+      "width": 320,
+      "scrollWidth": 320,
+      "scrollX": 0
+    }
+  ]
+}
