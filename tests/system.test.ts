@@ -116,6 +116,22 @@ test('wrong PIN lockout is persisted; malformed money and cross-origin requests 
   const locked=await browser.call('signInExit',['ATT-003',attendantPin]);assert.equal(locked.data.result.error,'locked')
   const malformed=await browser.call('completePayment',['fake',{method:'Cash',tender:-1}]);assert.equal(malformed.status,400)
   const response=await api.POST(new Request('http://localhost:3100/api/system',{method:'POST',headers:{host:'localhost:3100',origin:'https://other.example','x-naga-request':'1'},body:'{}'}));assert.equal(response.status,403)
+  const nullOrigin=await api.POST(new Request('http://localhost:3100/api/system',{method:'POST',headers:{host:'localhost:3100',origin:'null','x-naga-request':'1'},body:'{}'}));assert.equal(nullOrigin.status,403)
+  const missingOrigin=await api.POST(new Request('http://localhost:3100/api/system',{method:'POST',headers:{host:'localhost:3100','x-naga-request':'1'},body:'{}'}));assert.equal(missingOrigin.status,403)
+})
+
+test('forged device cookies cannot hijack another kiosk session and public state redacts metadata',async()=>{
+  const victim=new Browser(),attacker=new Browser()
+  const vInit=await victim.call()
+  await victim.call('claimSlot',['Motorcycle'])
+  const issued=(await victim.call('issueTicket')).data.result.ticketId
+  attacker.cookies.set('nsp_device',vInit.data.device)
+  const forgedRead=await attacker.call()
+  assert.notEqual(forgedRead.data.device,vInit.data.device)
+  assert.equal(forgedRead.data.state.sessions[issued],undefined)
+  assert.equal(forgedRead.data.state.admin.failedAttempts,0)
+  assert.ok(forgedRead.data.state.attendants.every((a:any)=>a.failedAttempts===0&&a.lastAccess===undefined&&a.email===''))
+  assert.ok(forgedRead.data.state.slots.every((s:any)=>s.reason===''))
 })
 
 test('concurrent payment and lost-response retry record one payment; expired sessions cannot pay',async()=>{

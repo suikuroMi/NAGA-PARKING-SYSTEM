@@ -3,18 +3,43 @@ import { NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { readState, saveState } from '@/server/repository'
 import { createEngine } from '@/server/engine'
-import { cookie, identity, issueSession, publicState, rateLimit, secureCookie, tokenHash, type Identity } from '@/server/access'
+import { clientIp, cookie, identity, issueSession, pruneExpired, publicState, rateLimit, secureCookie, signDevice, tokenHash, verifyDevice } from '@/server/access'
 import { adminCommands, authCommands, exitCommands, kioskCommands, RequestError, validate } from '@/server/validation'
+import type { State } from '@/store/types'
 
 export const dynamic='force-dynamic'
 
+const PIN_AUTH_COMMANDS = ['verifyAdminPin','signInExit','unlockExit','changeAdminPin','voidAndReopen','voidTransaction','refundTransaction','endSession']
+
+function assertOrigin(request: Request) {
+  if (request.headers.get('x-naga-request') !== '1') throw new RequestError('Request origin rejected.', 403)
+  const origin = request.headers.get('origin')
+  const host = request.headers.get('host')
+  if (!origin || !host) throw new RequestError('Request origin rejected.', 403)
+  let parsed: URL
+  try {
+    parsed = new URL(origin)
+  } catch {
+    throw new RequestError('Request origin rejected.', 403)
+  }
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.host !== host) {
+    throw new RequestError('Request origin rejected.', 403)
+  }
+}
+
+function needsSweep(state: State, now: number) {
+  if (state.claims.some(c => now - c.at > 3 * 60000)) return true
+  if (state.exitSession && !state.exitSession.locked && now - state.exitSession.lastActive > state.settings.exitLockMin * 60000) return true
+  return false
+}
+
 async function handle(request: Request, mutate: boolean) {
   let client
+  let inTx=false
   try {
     let body: Record<string,unknown> = {}
     if(mutate) {
-      const origin=request.headers.get('origin')
-      if(request.headers.get('x-naga-request')!=='1'||(origin && new URL(origin).host!==request.headers.get('host'))) throw new RequestError('Request origin rejected.',403)
+      assertOrigin(request)
       if(Number(request.headers.get('content-length')||0)>16000)throw new RequestError('Request too large.',413)
       const rawText=await request.text()
       if(rawText.length>16000)throw new RequestError('Request too large.',413)
@@ -24,14 +49,27 @@ async function handle(request: Request, mutate: boolean) {
       body=parsed as Record<string,unknown>
       if(typeof body.command!=='string')throw new RequestError('Command required.')
     }
+    const verifiedDevice=verifyDevice(cookie(request,'nsp_device'))
+    const device=verifiedDevice ?? randomUUID()
     client=await pool.connect()
+
+    if(!mutate) {
+      const snapshot=await readState(client)
+      const now=Date.now()
+      if(!needsSweep(snapshot,now)) {
+        const auth=await identity(client,request,snapshot)
+        const response=NextResponse.json({state:publicState(snapshot,auth,device),auth:{role:auth.role,actor:auth.actor},device,result:null}, {headers:{'Cache-Control':'no-store'}})
+        if(!verifiedDevice)response.headers.append('Set-Cookie',secureCookie(request,'nsp_device',signDevice(device),86400))
+        return response
+      }
+    }
+
     await client.query('BEGIN')
+    inTx=true
     // The facility has one exit terminal. Serialize commands across all clients.
     await client.query('SELECT id FROM parking_config WHERE id=1 FOR UPDATE')
     const before=await readState(client)
     let auth=await identity(client,request,before)
-    const deviceCookie=cookie(request,'nsp_device')
-    const device=/^[a-f0-9-]{36}$/.test(deviceCookie)?deviceCookie:randomUUID()
     const engine=createEngine(structuredClone(before),device)
     engine.sweep()
     if(before.exitSession && !before.exitSession.locked && Date.now()-before.exitSession.lastActive>before.settings.exitLockMin*60000) engine.lockExit('idle')
@@ -39,13 +77,20 @@ async function handle(request: Request, mutate: boolean) {
     let result: unknown=null
     let command=''
     if(mutate) {
+      await pruneExpired(client)
       command=body.command as string
       const args=validate(command,body.args)
       const requestId=body.id
       if(typeof requestId!=='string'||!/^[a-f0-9-]{36}$/.test(requestId))throw new RequestError('Request ID required.')
-      const authAction=['verifyAdminPin','signInExit','unlockExit'].includes(command)
-      if(!await rateLimit(client,`${authAction?'auth':'command'}:${device}`,authAction?10:180,60000)) {
-        await client.query('COMMIT')
+      const ip=clientIp(request)
+      const authAction=PIN_AUTH_COMMANDS.includes(command)
+      const withinLimits =
+        (verifiedDevice ? true : await rateLimit(client,`new-device:${ip}`,25,60000)) &&
+        (!authAction || await rateLimit(client,`ip-auth:${ip}`,40,60000)) &&
+        (command!=='claimSlot' || await rateLimit(client,`ip-claim:${ip}`,20,60000)) &&
+        await rateLimit(client,`${authAction?'auth':'command'}:${device}`,authAction?10:180,60000)
+      if(!withinLimits) {
+        await client.query('COMMIT');inTx=false
         return NextResponse.json({error:'Too many requests. Please wait a minute.'},{status:429})
       }
       const allowed=kioskCommands.includes(command)||authCommands.includes(command)||(auth.role==='admin'&&adminCommands.includes(command))||(auth.role==='attendant'&&exitCommands.includes(command))
@@ -104,13 +149,13 @@ async function handle(request: Request, mutate: boolean) {
     }
     const state=engine.getState()
     await saveState(client,before,state)
-    await client.query('COMMIT')
+    await client.query('COMMIT');inTx=false
     const response=NextResponse.json({state:publicState(state,auth,device),auth:{role:auth.role,actor:auth.actor},device,result}, {headers:{'Cache-Control':'no-store'}})
-    if(device!==deviceCookie)response.headers.append('Set-Cookie',secureCookie(request,'nsp_device',device,86400))
+    if(!verifiedDevice)response.headers.append('Set-Cookie',secureCookie(request,'nsp_device',signDevice(device),86400))
     if(nextCookie!==undefined)response.headers.append('Set-Cookie',secureCookie(request,'nsp_session',nextCookie,nextCookie?1800:0))
     return response
   } catch(error) {
-    if(client)await client.query('ROLLBACK').catch(()=>{})
+    if(client&&inTx)await client.query('ROLLBACK').catch(()=>{})
     if(error instanceof RequestError)return NextResponse.json({error:error.message},{status:error.status})
     console.error('Parking operation failed:', error instanceof Error ? error.message : 'Unknown error')
     return NextResponse.json({error:'Parking database unavailable. Your action was not confirmed. Retry when connected.'},{status:503})

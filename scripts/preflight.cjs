@@ -21,6 +21,7 @@ async function check({launch=false}={}){
   const cert=new X509Certificate(fs.readFileSync('.runtime/tls/server.crt'));ca=fs.readFileSync('.runtime/tls/ca.crt');const root=new X509Certificate(ca);
   if(!cert.checkPrivateKey(createPrivateKey(fs.readFileSync('.runtime/tls/server.key')))||!cert.verify(root.publicKey))throw Error();
   for(const [label,c]of [['server',cert],['CA',root]]){if(Date.now()<Date.parse(c.validFrom)||Date.parse(c.validTo)-Date.now()<7*86400000)fail(label+' certificate is invalid or expires within seven days. Renew HTTPS before rehearsal.');else pass(label+' certificate valid through '+new Date(c.validTo).toISOString().slice(0,10)+'.')}
+  console.log('CA SHA-256: '+root.fingerprint256);
   for(const {ip}of targets)if(!cert.checkIP(ip))fail('Certificate does not cover '+ip+'. Run npm run https:setup, then restart the app.');
  }catch{fail('HTTPS certificate/key missing or mismatched. Run npm run https:setup. No trust settings were changed.')}
  for(const p of [port,3443]){

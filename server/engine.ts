@@ -115,23 +115,24 @@ function issueTicket(): Session | null {
 const TERMINAL = { name: 'Terminal 01', lane: 'Lane A' as const }
 
 const MAX_ATTEMPTS = 5
-const LOCKOUT_MS = 60000
+const LOCKOUT_TIERS_MS = [60000, 300000, 900000, 1800000]
 
 type AuthResult = { ok: true } | { ok: false; error: 'wrong' | 'locked' | 'disabled' | 'weak' | 'mismatch' | 'same'; attemptsLeft?: number; retryAt?: number }
 
 type Credential = { pinHash: string; pinSalt: string; failedAttempts: number; lockedUntil?: number }
 
-/** Checks a PIN against a credential, applying the shared 5-tries / 60-second lockout. */
+/** Checks a PIN against a credential, applying progressive lockout (1m → 5m → 15m → 30m) every 5 failures. */
 function attempt<C extends Credential>(c: C, pin: string): { next: C; result: AuthResult; lockedNow: boolean } {
   const t = now()
   if (c.lockedUntil && c.lockedUntil > t) return { next: c, result: { ok: false, error: 'locked', retryAt: c.lockedUntil }, lockedNow: false }
   if (checkPin(pin, c.pinSalt, c.pinHash)) return { next: { ...c, failedAttempts: 0, lockedUntil: undefined }, result: { ok: true }, lockedNow: false }
-  const failed = (c.lockedUntil && c.lockedUntil <= t ? 0 : c.failedAttempts) + 1
-  if (failed >= MAX_ATTEMPTS) {
-    const retryAt = t + LOCKOUT_MS
-    return { next: { ...c, failedAttempts: 0, lockedUntil: retryAt }, result: { ok: false, error: 'locked', retryAt }, lockedNow: true }
+  const failed = c.failedAttempts + 1
+  if (failed % MAX_ATTEMPTS === 0) {
+    const tier = Math.min(Math.floor(failed / MAX_ATTEMPTS), LOCKOUT_TIERS_MS.length) - 1
+    const retryAt = t + LOCKOUT_TIERS_MS[tier]
+    return { next: { ...c, failedAttempts: failed, lockedUntil: retryAt }, result: { ok: false, error: 'locked', retryAt }, lockedNow: true }
   }
-  return { next: { ...c, failedAttempts: failed, lockedUntil: undefined }, result: { ok: false, error: 'wrong', attemptsLeft: MAX_ATTEMPTS - failed }, lockedNow: false }
+  return { next: { ...c, failedAttempts: failed, lockedUntil: undefined }, result: { ok: false, error: 'wrong', attemptsLeft: MAX_ATTEMPTS - (failed % MAX_ATTEMPTS) }, lockedNow: false }
 }
 
 function patchAttendant(s: State, id: string, patch: Partial<Attendant>): State {

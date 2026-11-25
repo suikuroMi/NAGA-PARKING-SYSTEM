@@ -2,7 +2,6 @@ import type { ActivityEvent, Attendant, Category, DigitalProvider, RateConfig, S
 import { CATEGORIES as CATS } from './types'
 import { calcFee, manilaDot, slotShort, ticketId, txnId } from './logic'
 import { fmtPHP } from '../lib/format'
-import { credentials } from '../lib/pin'
 
 function rng(seed: number) {
   return () => {
@@ -54,17 +53,13 @@ function buildSlots(): Slot[] {
   return slots
 }
 
-/** Demo PINs (also shown on the sign-in screens): Maria 1111, Joel 2222, Ana 3333, Mark 4444 (temporary). */
-export const DEMO_PINS = { 'ATT-001': '1111', 'ATT-002': '2222', 'ATT-003': '3333', 'ATT-004': '4444' } as Record<string, string>
-export const DEMO_ADMIN_PIN = '2468'
-
 function buildAttendants(at: (h: number, m: number) => number): Attendant[] {
-  const base = (id: string) => ({ ...credentials(DEMO_PINS[id]), failedAttempts: 0 })
+  const unconfigured = { pinSalt: '', pinHash: '', failedAttempts: 0 }
   return [
-    { id: 'ATT-001', name: 'Maria Santos', email: 'maria.santos@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(22, 15), mustChangePin: false, ...base('ATT-001') },
-    { id: 'ATT-002', name: 'Joel Reyes', email: 'joel.reyes@nsp.gov', lane: 'Lane B', status: 'Offline', lastAccess: at(21, 58), mustChangePin: false, ...base('ATT-002') },
-    { id: 'ATT-003', name: 'Ana Cruz', email: 'ana.cruz@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(20, 42), mustChangePin: false, ...base('ATT-003') },
-    { id: 'ATT-004', name: 'Mark Dela Cruz', email: 'mark.dela.cruz@nsp.gov', lane: 'Lane B', status: 'Pending', mustChangePin: true, ...base('ATT-004') },
+    { id: 'ATT-001', name: 'Maria Santos', email: 'maria.santos@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(22, 15), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-002', name: 'Joel Reyes', email: 'joel.reyes@nsp.gov', lane: 'Lane B', status: 'Offline', lastAccess: at(21, 58), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-003', name: 'Ana Cruz', email: 'ana.cruz@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(20, 42), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-004', name: 'Mark Dela Cruz', email: 'mark.dela.cruz@nsp.gov', lane: 'Lane B', status: 'Pending', mustChangePin: true, ...unconfigured },
   ]
 }
 
@@ -283,6 +278,6 @@ export function buildSeed(seededAt = Date.now()): State {
     settings: { welcomeResetSec: 15, idleTimeoutSec: 60, exitLockMin: 10, autoWelcome: true, receiptPrinters: 2 },
     seededAt,
     exitSession: null,
-    admin: { ...credentials(DEMO_ADMIN_PIN), failedAttempts: 0 },
+    admin: { pinSalt: '', pinHash: '', failedAttempts: 0 },
   }
 }
