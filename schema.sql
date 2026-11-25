@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Seed Rates
 INSERT INTO rates (vehicle_category, initial_fee, initial_duration_mins, additional_increment_mins, additional_rate, grace_period_mins, version)
-VALUES 
+VALUES
     ('Motorcycle', 20.00, 60, 60, 10.00, 0, 'v2026.10.16'),
     ('Car', 40.00, 60, 60, 20.00, 0, 'v2026.10.16'),
     ('Van', 50.00, 60, 60, 25.00, 0, 'v2026.10.16'),
@@ -77,7 +77,7 @@ ON CONFLICT (vehicle_category) DO NOTHING;
 
 -- Seed Attendants
 INSERT INTO attendants (id, name, email, lane, status)
-VALUES 
+VALUES
     ('ATT-001', 'Maria Santos', 'maria.santos@nsp.gov', 'Lane A', 'Active'),
     ('ATT-002', 'Joel Reyes', 'joel.reyes@nsp.gov', 'Lane B', 'On break'),
     ('ATT-003', 'Ana Cruz', 'ana.cruz@nsp.gov', 'Lane A', 'Offline'),

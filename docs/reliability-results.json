@@ -1,0 +1,12 @@
+{
+  "executedAt": "2026-11-18T01:58:27.028Z",
+  "isolatedCluster": true,
+  "checks": [
+    "issueTicket: offline, precommit rollback, real database stop, lost-response retry",
+    "completePayment: offline, precommit rollback, real database stop, lost-response retry",
+    "refundTransaction: offline, precommit rollback, real database stop, lost-response retry",
+    "account UI: create, required PIN change, disable, re-enable, reset and reload",
+    "stale polling response cannot discard a confirmed claim",
+    "deadline releases busy state; late issuance response recovers the existing ticket"
+  ]
+}

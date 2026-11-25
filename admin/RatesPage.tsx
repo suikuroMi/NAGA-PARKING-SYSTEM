@@ -11,6 +11,7 @@ const FIELDS: { key: keyof Rate; label: string; unit: 'PHP' | 'min' }[] = [
   { key: 'initialMin', label: 'Initial duration', unit: 'min' },
   { key: 'incrementMin', label: 'Additional increment', unit: 'min' },
   { key: 'additional', label: 'Additional rate', unit: 'PHP' },
+  { key: 'lostFee', label: 'Lost-ticket fee', unit: 'PHP' },
 ]
 
 export default function RatesPage() {
@@ -20,11 +21,12 @@ export default function RatesPage() {
   const [grace, setGrace] = useState(rates.grace)
   const [cat, setCat] = useState<Category>('Motorcycle')
   const [minutes, setMinutes] = useState(105)
+  const [lost, setLost] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(rates.categories) || grace !== rates.grace
-  const invalid = CATEGORIES.some((c) => FIELDS.some((f) => !(draft[c][f.key] >= (f.unit === 'min' ? 1 : 0))))
+  const invalid = !Number.isFinite(grace) || grace < 0 || grace > 120 || CATEGORIES.some(c=>FIELDS.some(f=>{const value=draft[c][f.key];return !Number.isFinite(value)||value<(f.unit==='min'?1:0)||value>(f.unit==='min'?1440:1000000)||(f.unit==='PHP'&&Math.abs(value*100-Math.round(value*100))>0.000001)}))
   const c = counts(slots)
   const r = draft[cat]
-  const q = calcFee(r, minutes, grace)
+  const q = calcFee(r, minutes, grace, lost)
 
   const setField = (c: Category, k: keyof Rate, v: string) => setDraft((d) => ({ ...d, [c]: { ...d[c], [k]: v === '' ? NaN : Number(v) } }))
 
@@ -63,7 +65,8 @@ export default function RatesPage() {
                         <span className="text-[11px] text-muted">{f.unit === 'PHP' ? 'PHP' : ''}</span>
                         <input
                           type="number"
-                          min={0}
+                          min={f.unit === 'PHP' ? 0 : 1}
+                          step={f.unit === 'PHP' ? 0.01 : 1}
                           value={Number.isNaN(draft[c][f.key]) ? '' : draft[c][f.key]}
                           onChange={(e) => setField(c, f.key, e.target.value)}
                           className="tabular h-7 w-12 bg-transparent text-right outline-none"
@@ -89,6 +92,7 @@ export default function RatesPage() {
               ['Unavailable slots', `${c.unavailable} slot${c.unavailable === 1 ? '' : 's'} excluded from assignment`],
               ['Attendant override', 'Exit fee must use configured rate and stored timestamps'],
               ['Session rounding', 'Partial increments round up to the next full increment'],
+              ['Lost ticket', 'Stored-time fee plus the lost-ticket fee frozen at entry · cannot be waived at the terminal'],
             ]}
           />
         </div>
@@ -109,8 +113,9 @@ export default function RatesPage() {
             <Button
               size="md"
               disabled={!dirty || invalid}
-              onClick={() => {
-                const v = saveRates(draft, grace)
+              onClick={async () => {
+                const v = await saveRates(draft, grace)
+                if (!v) return
                 toast(`Rate version ${v} saved · new sessions only`, 'ok')
               }}
             >
@@ -133,6 +138,10 @@ export default function RatesPage() {
             </div>
             <input type="range" min={5} max={480} step={5} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="mt-3 w-full accent-[var(--color-brand)]" />
           </label>
+          <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px]">
+            <input type="checkbox" checked={lost} onChange={(e) => setLost(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
+            Include lost-ticket fee
+          </label>
           <dl className="mt-5 space-y-3 text-[13px]">
             {[
               ['Category', cat],
@@ -140,6 +149,7 @@ export default function RatesPage() {
               ['Additional time', `${q.extraMin} min`],
               ['Rounded to next increment', `${q.increments} increment${q.increments === 1 ? '' : 's'} of ${r.incrementMin} min`],
               ['Additional fee', `PHP ${q.additional}`],
+              ...(lost ? [['Lost-ticket fee', `PHP ${q.lostFee}`]] : []),
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between">
                 <dt className="text-muted">{k}</dt>
@@ -152,7 +162,7 @@ export default function RatesPage() {
             </div>
           </dl>
           <div className="mt-5 rounded-lg bg-canvas px-4 py-3 text-[13px] text-muted">
-            Calculation: PHP {r.initial} initial + PHP {q.additional} additional = PHP {q.total}. Attendants cannot change this fee arbitrarily.
+            Calculation: PHP {r.initial} initial + PHP {q.additional} additional{lost ? ` + PHP ${q.lostFee} lost ticket` : ''} = PHP {q.total}. Attendants cannot change this fee arbitrarily.
           </div>
         </Card>
         <div className="space-y-6">

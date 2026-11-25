@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowRight,
   Archive,
   Banknote,
   BadgeCheck,
   Camera,
+  CameraOff,
+  CircleSlash,
+  TicketX,
+  Undo2,
   Check,
   CircleAlert,
   CircleCheck,
@@ -16,30 +20,48 @@ import {
   ScanLine,
   Search,
   ShieldCheck,
+  Smartphone,
 } from 'lucide-react'
 import ExitLayout from './ExitLayout'
-import CameraScanner from '../components/CameraScanner'
-import { Badge, Button, Card, CardHead, cx, IconCircle, Input, Note, Rows, toast } from '../components/ui'
+import ExitGate from './ExitGate'
+import LostTicket from './LostTicket'
+import SupervisorOverride from './SupervisorOverride'
+import { centavos } from '../lib/money'
+import { paymentTime } from '../store/reporting'
+import CameraScanner, { type CameraError } from './CameraScanner'
+import { Badge, Button, Card, CardHead, cx, IconCircle, Input, Note, QRCode, Rows, toast } from '../components/ui'
+import { printReceipt, receiptJob } from '../lib/printer'
 import { match, navigate } from '../lib/router'
-import { cancelCheckout, completePayment, getState, lookupTicket, OPERATOR, quoteFor, useNow, useStore } from '../store/store'
-import { computeStats, slotLabel, ticketId } from '../store/logic'
-import type { Session } from '../store/types'
+import { cancelCheckout, completePayment, getState, isValidReference, lookupTicket, normalizeReference, now, overrideBlocker, quoteFor, TERMINAL, useExitAttendant, useNow, useStore } from '../store/store'
+import { computeStats, netAmount, refundedOf, slotLabel, ticketId, TX_TONE, txStatus } from '../store/logic'
+import { PROVIDERS, type DigitalProvider, type Payment as PaymentRecord, type Session } from '../store/types'
 import { fmtDurationLong, fmtLong, fmtPHP, fmtTime } from '../lib/format'
 
 /* ---------- routing ---------- */
 
 export default function Exit({ path }: { path: string }) {
+  return (
+    <ExitGate>
+      <ExitRoutes path={path} />
+    </ExitGate>
+  )
+}
+
+function ExitRoutes({ path }: { path: string }) {
   const sessions = useStore((s) => s.sessions)
   const checkout = useStore((s) => s.checkout)
   const route = (p: string) => match(p, path)
 
   let m: Record<string, string> | null
+  if (path === '/exit/lost') return <LostTicket />
   if ((m = route('/exit/invalid/:id'))) return <Invalid id={m.id} />
   if ((m = route('/exit/:step/:id'))) {
     const session = sessions[m.id]
     if (!session) return <Invalid id={m.id} />
     const step = m.step
-    if (step === 'receipt') return session.status === 'completed' ? <Receipt session={session} /> : <Redirect to={`/exit/fee/${session.ticketId}`} />
+    if (session.status === 'closed') return <Ended session={session} />
+    // A reopened checkout (supervisor override) continues at payment; otherwise review the fee first.
+    if (step === 'receipt') return session.status === 'completed' ? <Receipt session={session} /> : <Redirect to={`/exit/${checkout?.ticketId === session.ticketId ? 'payment' : 'fee'}/${session.ticketId}`} />
     if (step === 'paid') return session.status === 'completed' ? <AlreadyPaid session={session} /> : <Redirect to="/exit" />
     if (step === 'closed') return <Closed session={session} />
     if (session.status === 'completed') return <Closed session={session} />
@@ -57,9 +79,10 @@ function Redirect({ to }: { to: string }) {
   return null
 }
 
-function scan(query: string) {
-  const r = lookupTicket(query)
-  const to = { invalid: `/exit/invalid/${encodeURIComponent(r.id || 'blank')}`, paid: `/exit/paid/${r.id}`, duplicate: `/exit/duplicate/${r.id}`, found: `/exit/session/${r.id}` }[r.kind]
+async function scan(query: string) {
+  let r
+  try { r = await lookupTicket(query) } catch { return }
+  const to = { invalid: `/exit/invalid/${encodeURIComponent(r.id || 'blank')}`, paid: `/exit/paid/${r.id}`, duplicate: `/exit/duplicate/${r.id}`, found: `/exit/session/${r.id}`, ended: `/exit/ended/${r.id}` }[r.kind]
   navigate(to)
 }
 
@@ -68,7 +91,7 @@ function simulatedScanTarget() {
   const s = getState()
   if (s.checkout) return s.checkout.ticketId
   if (s.lastIssued && s.sessions[s.lastIssued]?.status === 'active') return s.lastIssued
-  const demo = ticketId(1)
+  const demo = ticketId(1, s.seededAt)
   if (s.sessions[demo]?.status === 'active') return demo
   return Object.values(s.sessions).find((x) => x.status === 'active')?.ticketId ?? demo
 }
@@ -81,13 +104,44 @@ const flowLinks = (id: string, upTo: number) => {
 /* ---------- shared bits ---------- */
 
 function useQuote(session: Session) {
-  const exitAt = useStore((s) => s.checkout?.exitAt) ?? session.exit ?? Date.now()
-  return { exitAt, ...quoteFor(session, exitAt) }
+  const checkout = useStore((s) => (s.checkout?.ticketId === session.ticketId ? s.checkout : null))
+  const exitAt = checkout?.exitAt ?? session.exit ?? now()
+  const lost = checkout ? !!checkout.lostTicket : !!session.payment?.lostTicketFee
+  return { exitAt, lost, ...quoteFor(session, exitAt, lost) }
+}
+
+/** Live transaction record behind a session's payment (for corrections). */
+function useTx(session: Session) {
+  const id = session.payment?.transactionId
+  return useStore((s) => (id ? s.transactions.find((x) => x.id === id) : undefined))
+}
+
+/** Explains a void or refund on read-only payment screens. */
+function CorrectionNote({ session, className }: { session: Session; className?: string }) {
+  const tx = useTx(session)
+  if (!tx) return null
+  if (tx.voided)
+    return (
+      <Note tone="bad" icon={CircleSlash} className={className} title="Payment voided">
+        By {tx.voided.by} · {tx.voided.reason}
+        {tx.voided.note ? ` · ${tx.voided.note}` : ''} · {fmtLong(tx.voided.at)}
+      </Note>
+    )
+  const refunded = refundedOf(tx)
+  if (!refunded) return null
+  return (
+    <Note tone="warn" icon={Undo2} className={className} title={`${fmtPHP(refunded, true)} refunded · net ${fmtPHP(netAmount(tx), true)}`}>
+      {(tx.refunds ?? []).map((r) => `${fmtPHP(r.amount, true)} · ${r.reason}${r.note ? ` (${r.note})` : ''} · ${fmtLong(r.at)}`).join(' · ')}
+    </Note>
+  )
 }
 
 function useSlot(id: string) {
   return useStore((s) => s.slots.find((x) => x.id === id))!
 }
+
+/** "GCash · Ref 1012…" for digital payments, "Cash" otherwise. */
+const methodLabel = (p: PaymentRecord) => (p.method === 'Digital' ? `${p.provider ?? 'Digital'}${p.reference ? ` · Ref ${p.reference}` : ''}` : 'Cash')
 
 const snapshotLabel = (t: number, paid = false) => `${fmtTime(t)} · ${paid ? 'Paid snapshot' : 'Checkout snapshot'}`
 
@@ -98,41 +152,56 @@ function Dashboard() {
   const stats = computeStats(state)
   const [query, setQuery] = useState('')
   const [scanning, setScanning] = useState(false)
-  const [cameraOpen, setCameraOpen] = useState(false)
-  const timer = useRef<number>(0)
-  useEffect(() => () => clearTimeout(timer.current), [])
-
-  const doScan = () => {
-    setScanning(true)
-    timer.current = window.setTimeout(() => scan(simulatedScanTarget()), 1300)
+  const [camera, setCamera] = useState<'off' | 'starting' | 'live'>('off')
+  const [camError, setCamError] = useState<CameraError | null>(null)
+  const toggleCamera = () => {
+    setCamError(null)
+    setCamera((c) => (c === 'off' ? 'starting' : 'off'))
   }
-  const demoChips = [
-    state.lastIssued && state.sessions[state.lastIssued] ? { id: state.lastIssued, label: 'Latest kiosk ticket' } : null,
-    { id: ticketId(1), label: state.sessions[ticketId(1)]?.status === 'completed' ? 'Paid ticket' : 'Active ticket' },
-    { id: ticketId(999), label: 'Unknown ticket' },
-  ].filter(Boolean) as { id: string; label: string }[]
+  const cameraOn = camera !== 'off'
+  const caption = scanning ? 'Reading QR ticket…' : camera === 'starting' ? 'Starting camera…' : camera === 'live' ? 'Point the ticket QR at the camera' : 'Camera off · Scan a ticket or enter its ID'
 
   return (
     <ExitLayout stage={0} title="Ready for the next vehicle" sub="Scan a parking ticket to retrieve its stored session.">
       <div className="grid gap-7 lg:grid-cols-[1fr_464px]">
         <Card className="p-6">
-          <CardHead title="QR Scanner" sub="Position the printed QR ticket inside the guide or use webcam." />
+          <CardHead title="QR Scanner" sub="Position the printed QR ticket inside the guide." />
           <div className="relative mt-7 flex h-[310px] flex-col items-center justify-center overflow-hidden rounded-xl bg-navy">
-            <div className="relative grid size-52 place-items-center rounded-2xl border-[3px] border-sky-300/80">
-              <ScanLine className="size-16 text-sky-200/80" strokeWidth={1} />
-              {scanning && <div className="absolute inset-x-3 top-2 h-0.5 rounded bg-sky-300 shadow-[0_0_12px_2px_rgba(125,211,252,0.7)] [animation:scanline_1.2s_ease-in-out_infinite]" />}
-            </div>
-            <p className="mt-6 text-sm text-slate-200">{scanning ? 'Reading QR ticket…' : 'Camera preview · Scanner ready'}</p>
+            {cameraOn && !camError && (
+              <>
+                <CameraScanner
+                  onReady={() => setCamera('live')}
+                  onResult={(text) => {
+                    setCamera('off')
+                    scan(text)
+                  }}
+                  onError={(kind) => {
+                    setCamera('off')
+                    setCamError(kind)
+                  }}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-navy/35" />
+              </>
+            )}
+            {camError ? (
+              <CameraNotice kind={camError} onDismiss={() => setCamError(null)} />
+            ) : (
+              <>
+                <div className={cx('relative grid size-52 place-items-center rounded-2xl border-[3px] transition-colors', camera === 'live' ? 'border-white' : 'border-sky-300/80')}>
+                  {!cameraOn && <ScanLine className="size-16 text-sky-200/80" strokeWidth={1} />}
+                  {(scanning || camera === 'live') && <div className="absolute inset-x-3 top-2 h-0.5 rounded bg-sky-300 shadow-[0_0_12px_2px_rgba(125,211,252,0.7)] [animation:scanline_1.2s_ease-in-out_infinite]" />}
+                </div>
+                <p className="relative mt-6 rounded-full px-3 py-1 text-sm text-slate-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]" aria-live="polite">
+                  {caption}
+                </p>
+              </>
+            )}
           </div>
-          <div className="mt-5 flex gap-3">
-            <Button size="xl" icon={ScanLine} className="flex-1 uppercase" onClick={doScan} disabled={scanning}>
-              {scanning ? 'Scanning…' : 'Scan QR Ticket'}
-            </Button>
-            <Button size="xl" variant="secondary" icon={Camera} className="uppercase" onClick={() => setCameraOpen(true)}>
-              Live Camera
+          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <Button size="xl" icon={cameraOn ? CameraOff : Camera} variant={cameraOn ? 'secondary' : 'primary'} onClick={toggleCamera} disabled={scanning}>
+              {cameraOn ? 'Stop camera' : 'Scan with camera'}
             </Button>
           </div>
-          <CameraScanner open={cameraOpen} onClose={() => setCameraOpen(false)} onScan={(scanned) => scan(scanned)} />
           <form
             className="mt-7"
             onSubmit={(e) => {
@@ -155,22 +224,18 @@ function Dashboard() {
                 Find ticket
               </Button>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-              Demo tickets:
-              {demoChips.map((c) => (
-                <button key={c.id + c.label} type="button" onClick={() => setQuery(c.id)} className="tabular cursor-pointer rounded-md bg-slate-100 px-2 py-1 text-body hover:bg-brand-50 hover:text-brand">
-                  {c.id.slice(-4)} <span className="text-muted">· {c.label}</span>
-                </button>
-              ))}
-            </div>
+            <button type="button" onClick={() => navigate('/exit/lost')} className="mt-5 flex cursor-pointer items-center gap-2 text-sm text-brand underline-offset-4 hover:underline">
+              <TicketX className="size-4" strokeWidth={1.75} />
+              Driver lost their ticket?
+            </button>
           </form>
         </Card>
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <Card className="px-4 py-6">
-              <div className="text-xs text-muted">Revenue today</div>
-              <div className="tabular mt-3 text-[32px] leading-none text-ok">{fmtPHP(stats.revenue)}</div>
-              <div className="mt-5 text-[11px] text-muted">{stats.exited} confirmed transactions</div>
+              <div className="text-xs text-muted">Net collections · all recorded dates</div>
+              <div className="tabular mt-3 break-words text-[clamp(20px,4vw,32px)] leading-tight text-ok">{fmtPHP(stats.revenue, true)}</div>
+              <div className="mt-5 text-[11px] text-muted">{stats.paymentRecords} payment records · {state.transactions.filter(t => t.voided).length} voided</div>
             </Card>
             <Card className="px-4 py-6">
               <div className="text-xs text-muted">Active sessions</div>
@@ -184,7 +249,7 @@ function Dashboard() {
               {[
                 [ScanLine, 'Scan ticket', 'Retrieve the active session.'],
                 [ReceiptText, 'Review fee', 'Use the saved rate version.'],
-                [Banknote, 'Receive payment', 'Confirm cash before completion.'],
+                [Banknote, 'Receive payment', 'Confirm cash or GCash / Maya before completion.'],
               ].map(([Icon, t, d]) => {
                 const I = Icon as typeof ScanLine
                 return (
@@ -203,12 +268,12 @@ function Dashboard() {
         </div>
       </div>
       <Card className="mt-7 p-6">
-        <CardHead title="Recent completed transactions" sub="Today's confirmed payments · Latest first" />
+        <CardHead title="Recent payment records" sub="By payment time · Asia/Manila · Includes corrections" />
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-[13px]">
             <thead className="bg-canvas text-xs text-muted">
               <tr>
-                {['Transaction', 'Ticket', 'Category / space', 'Paid at', 'Amount', 'Status'].map((h) => (
+                {['Transaction', 'Ticket', 'Category / space', 'Paid at', 'Net amount', 'Status'].map((h) => (
                   <th key={h} className="px-3.5 py-3.5 font-normal">
                     {h}
                   </th>
@@ -216,16 +281,18 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {state.transactions.slice(0, 3).map((t) => (
+              {[...state.transactions].sort((a, b) => paymentTime(b, state).at - paymentTime(a, state).at).slice(0, 3).map((t) => (
                 <tr key={t.id} className="border-b border-line">
                   <td className="tabular px-3.5 py-5">…{t.id.slice(-4)}</td>
                   <td className="tabular px-3.5">{t.ticketId}</td>
                   <td className="px-3.5">
                     {t.category} · {t.slotId}
                   </td>
-                  <td className="tabular px-3.5">{fmtTime(t.exit)}</td>
-                  <td className="tabular px-3.5">{fmtPHP(t.amount)}</td>
-                  <td className="px-3.5 text-ok">Paid</td>
+                  <td className="tabular px-3.5">{fmtLong(paymentTime(t, state).at)}{paymentTime(t, state).source === 'estimated-checkout' && <span className="block text-xs text-muted">Estimated from checkout</span>}</td>
+                  <td className="tabular px-3.5">{fmtPHP(netAmount(t), true)}</td>
+                  <td className="px-3.5">
+                    <Badge tone={TX_TONE[txStatus(t)]}>{txStatus(t)}</Badge>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -233,6 +300,28 @@ function Dashboard() {
         </div>
       </Card>
     </ExitLayout>
+  )
+}
+
+const CAMERA_NOTICE: Record<CameraError, { title: string; body: string }> = {
+  denied: { title: 'Camera blocked', body: "Allow camera access in this browser's site settings, then try again. You can also enter the ticket ID below." },
+  nocamera: { title: 'No camera found', body: 'Allow access to the phone camera, or enter the ticket ID below.' },
+  unsupported: { title: 'Camera not available here', body: 'Camera scanning needs HTTPS and a supported browser. Enter the ticket ID if the camera cannot be used.' },
+}
+
+function CameraNotice({ kind, onDismiss }: { kind: CameraError; onDismiss: () => void }) {
+  const n = CAMERA_NOTICE[kind]
+  return (
+    <div className="flex max-w-[380px] flex-col items-center px-6 text-center" role="alert">
+      <span className="grid size-14 place-items-center rounded-full bg-white/10 text-sky-200">
+        <CameraOff className="size-7" strokeWidth={1.5} />
+      </span>
+      <div className="mt-5 text-lg text-white">{n.title}</div>
+      <p className="mt-2 text-sm leading-relaxed text-slate-300">{n.body}</p>
+      <button onClick={onDismiss} className="mt-5 cursor-pointer text-sm text-sky-200 underline-offset-4 hover:underline">
+        Dismiss
+      </button>
+    </div>
   )
 }
 
@@ -277,7 +366,7 @@ function Found({ session }: { session: Session }) {
               rows={[
                 ['Session status', 'Active · Not paid'],
                 ['Assigned bay', `${slot.id} · Occupied`],
-                ['Checkout lock', `Open on ${OPERATOR.terminal}`],
+                ['Checkout lock', `Open on ${TERMINAL.name}`],
               ]}
             />
             <Button icon={ArrowRight} className="mt-6 w-full uppercase" onClick={() => navigate(`/exit/fee/${session.ticketId}`)}>
@@ -286,8 +375,8 @@ function Found({ session }: { session: Session }) {
             <Button
               variant="secondary"
               className="mt-5 w-full"
-              onClick={() => {
-                cancelCheckout()
+              onClick={async () => {
+                await cancelCheckout()
                 navigate('/exit')
               }}
             >
@@ -364,7 +453,8 @@ function Fee({ session }: { session: Session }) {
               className="mt-6"
               rows={[
                 ['Grace period', `${session.grace} minutes`],
-                ['Calculation', `PHP ${r.initial} + (${q.increments} × PHP ${r.additional}) = PHP ${q.total}`],
+                ...(q.lost ? ([['Lost-ticket fee', `${fmtPHP(q.lostFee, true)} · frozen at entry`]] as [string, string][]) : []),
+                ['Calculation', `PHP ${r.initial} + (${q.increments} × PHP ${r.additional})${q.lost ? ` + PHP ${q.lostFee} lost ticket` : ''} = PHP ${q.total}`],
               ]}
             />
           </Card>
@@ -373,6 +463,11 @@ function Fee({ session }: { session: Session }) {
           <div className="rounded-2xl bg-navy px-8 py-8 text-white">
             <div className="text-sm tracking-[0.02em] text-slate-300 uppercase">Total amount due</div>
             <div className="tabular mt-6 text-[52px] leading-none">{fmtPHP(q.total, true)}</div>
+            {q.lost && (
+              <Badge tone="warn" className="mt-4 py-1.5">
+                Lost ticket · includes {fmtPHP(q.lostFee, true)} fee
+              </Badge>
+            )}
             <div className="mt-8 text-[15px] text-slate-300">No taxes or surcharges.</div>
             <Badge tone="warn" className="mt-4 py-1.5">
               Unpaid · {slot.id} remains occupied
@@ -390,8 +485,8 @@ function Fee({ session }: { session: Session }) {
           <Button
             variant="secondary"
             className="w-full uppercase"
-            onClick={() => {
-              cancelCheckout()
+            onClick={async () => {
+              await cancelCheckout()
               toast('Checkout closed · No charge recorded')
               navigate('/exit')
             }}
@@ -408,61 +503,163 @@ function Fee({ session }: { session: Session }) {
 /* ---------- 4. Payment ---------- */
 
 function Payment({ session }: { session: Session }) {
+  const attendant = useExitAttendant()
   const q = useQuote(session)
   const slot = useSlot(session.slotId)
+  const [method, setMethod] = useState<'Cash' | 'Digital'>('Cash')
   const [cash, setCash] = useState('')
+  const [provider, setProvider] = useState<DigitalProvider>('GCash')
+  const [ref, setRef] = useState('')
   const [confirmed, setConfirmed] = useState(false)
-  const tender = parseFloat(cash)
-  const valid = !isNaN(tender) && tender >= q.total
-  const change = valid ? tender - q.total : 0
+  const time = useNow(1000)
+  const openedAt = useStore(s=>s.checkout?.openedAt ?? 0)
+  const quoteExpired = time - openedAt >= 5 * 60000
+  const tender = Number(cash)
+  const cashValid = /^\d+(\.\d{1,2})?$/.test(cash) && tender >= q.total && tender <= 1000000
+  const refNorm = normalizeReference(ref)
+  const refValid = isValidReference(ref)
+  const valid = method === 'Cash' ? cashValid : refValid
+  const change = cashValid ? (centavos(tender) - centavos(q.total)) / 100 : 0
   const quick = [q.total, Math.ceil(q.total / 50) * 50, Math.ceil(q.total / 100) * 100, 500].filter((v, i, a) => a.indexOf(v) === i)
 
-  useEffect(() => setConfirmed(false), [cash])
+  useEffect(() => setConfirmed(false), [cash, ref, provider, method])
 
-  const complete = () => {
-    const tx = completePayment(session.ticketId, tender)
+  const switchMethod = (m: 'Cash' | 'Digital') => {
+    setMethod(m)
+    setCash('')
+    setRef('')
+  }
+
+  const complete = async () => {
+    const tx = await completePayment(session.ticketId, method === 'Cash' ? { method: 'Cash', tender } : { method: 'Digital', provider, reference: ref })
     if (tx) {
       toast(`${fmtPHP(tx.amount, true)} recorded · ${slot.id} released`, 'ok')
       navigate(`/exit/receipt/${session.ticketId}`)
     }
   }
 
+  const digital = method === 'Digital'
+  const confirmText = digital
+    ? refValid
+      ? `I verified the ${provider} confirmation for ${fmtPHP(q.total, true)} (ref ${refNorm}).`
+      : 'Enter the reference number to confirm.'
+    : cashValid
+      ? `I received ${fmtPHP(tender, true)} cash and will return ${fmtPHP(change, true)} change.`
+      : 'Enter the cash received to confirm.'
+
   return (
-    <ExitLayout stage={3} links={flowLinks(session.ticketId, 2)} title="Confirm payment received" sub="Count the cash and confirm receipt before completing the parking session." snapshotLabel={snapshotLabel(q.exitAt)}>
-      <div className="grid gap-7 lg:grid-cols-[1fr_450px]">
+    <ExitLayout
+      stage={3}
+      links={flowLinks(session.ticketId, 2)}
+      title={digital ? 'Confirm digital payment' : 'Confirm payment received'}
+      sub={digital ? "Verify the driver's GCash or Maya confirmation before completing the parking session." : 'Count the cash and confirm receipt before completing the parking session.'}
+      snapshotLabel={snapshotLabel(q.exitAt)}
+    >
+      {quoteExpired && <Note tone="warn" title="Fee quote expired" className="mb-5">
+        Review the updated fee before accepting payment.
+        <Button size="md" className="mt-3" onClick={async()=>{await cancelCheckout();await scan(session.ticketId)}}>Review updated fee</Button>
+      </Note>}
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_450px]">
         <Card className="p-6">
-          <CardHead title="Cash payment" sub="Payment method · Cash" />
+          <CardHead
+            title={digital ? 'Digital payment' : 'Cash payment'}
+            sub={`Payment method · ${digital ? provider : 'Cash'}`}
+            right={
+              <div role="radiogroup" aria-label="Payment method" className="inline-flex rounded-xl bg-canvas p-1">
+                {(
+                  [
+                    ['Cash', Banknote],
+                    ['Digital', Smartphone],
+                  ] as const
+                ).map(([m, Icon]) => (
+                  <button
+                    key={m}
+                    role="radio"
+                    aria-checked={method === m}
+                    onClick={() => switchMethod(m)}
+                    className={cx('flex h-10 cursor-pointer items-center gap-2 rounded-lg px-4 text-sm transition', method === m ? 'bg-white text-brand shadow-sm shadow-slate-900/10' : 'text-muted hover:text-ink')}
+                  >
+                    <Icon className="size-4" strokeWidth={1.75} />
+                    {m}
+                  </button>
+                ))}
+              </div>
+            }
+          />
           <div className="mt-5 flex items-center justify-between rounded-xl bg-brand-50 px-6 py-8 text-brand">
             <span className="text-lg">Amount due</span>
             <span className="tabular text-[42px] leading-none">{fmtPHP(q.total, true)}</span>
           </div>
-          <Input
-            className="mt-6"
-            label="Cash received (PHP)"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={cash}
-            onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, ''))}
-            autoFocus
-          />
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {quick.map((v) => (
-              <button key={v} onClick={() => setCash(v.toFixed(2))} className="tabular cursor-pointer rounded-md border border-line bg-white px-3 py-1.5 text-xs text-body hover:border-brand hover:text-brand">
-                {v === q.total ? 'Exact' : `PHP ${v}`}
-              </button>
-            ))}
-          </div>
-          {cash && !valid && <p className="mt-2 text-xs text-bad">Cash received must cover the amount due.</p>}
-          <Input className="mt-5" label="Change to return (PHP)" value={valid ? change.toFixed(2) : '—'} locked />
-          <Rows className="mt-6" rows={[['Fee calculation', `PHP ${q.initial} initial + PHP ${q.additional} additional`]]} />
+          {digital ? (
+            <>
+              <div className="mt-6 text-[13px] text-ink">Provider</div>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setProvider(p)}
+                    aria-pressed={provider === p}
+                    className={cx('h-12 cursor-pointer rounded-lg border-2 text-[15px] transition', provider === p ? 'border-brand bg-brand-50 text-brand' : 'border-line bg-white text-body hover:border-brand/40')}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center gap-5 rounded-xl border border-line px-5 py-4">
+                <div className="min-w-0">
+                  <div className="text-[15px] text-ink">Verify external payment</div>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+                    Check that {fmtPHP(q.total, true)} was received in the facility's {provider} account, then record the matching reference number.
+                  </p>
+                  <div className="mt-2 text-[11px] text-faint">Manually verify payment in the approved merchant account. This app records the reference; it does not process funds.</div>
+                </div>
+              </div>
+              <Input
+                className="mt-5"
+                label={`${provider} reference number`}
+                placeholder="e.g. 1012 345 678 901"
+                autoComplete="off"
+                spellCheck={false}
+                value={ref}
+                onChange={(e) => setRef(e.target.value.replace(/[^\dA-Za-z\s-]/g, '').slice(0, 26))}
+                autoFocus
+              />
+              {ref && !refValid && <p className="mt-2 text-xs text-bad">Enter the 6–20 character reference from the driver's confirmation.</p>}
+              <Input className="mt-5" label="Change to return (PHP)" value="0.00 · digital payment" locked />
+            </>
+          ) : (
+            <>
+              <Input
+                className="mt-6"
+                label="Cash received (PHP)"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={cash}
+                onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, ''))}
+                autoFocus
+              />
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {quick.map((v) => (
+                  <button key={v} onClick={() => setCash(v.toFixed(2))} className="tabular cursor-pointer rounded-md border border-line bg-white px-3 py-1.5 text-xs text-body hover:border-brand hover:text-brand">
+                    {v === q.total ? 'Exact' : `PHP ${v}`}
+                  </button>
+                ))}
+              </div>
+              {cash && !cashValid && <p className="mt-2 text-xs text-bad">Enter a valid cash amount covering the fee, with at most two decimal places.</p>}
+              <Input className="mt-5" label="Change to return (PHP)" value={cashValid ? change.toFixed(2) : '—'} locked />
+            </>
+          )}
+          <Rows className="mt-6" rows={[['Fee calculation', `PHP ${q.initial} initial + PHP ${q.additional} additional${q.lost ? ` + PHP ${q.lostFee} lost-ticket fee` : ''}`]]} />
           <label className={cx('mt-6 flex items-center gap-4 rounded-xl px-5 py-5 text-[15px] transition', valid ? 'cursor-pointer bg-ok-50 text-ok' : 'cursor-not-allowed bg-slate-100 text-muted')}>
             <input type="checkbox" className="peer sr-only" disabled={!valid} checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
             <span className={cx('grid size-[26px] shrink-0 place-items-center rounded-md border-2 transition peer-focus-visible:outline-2 peer-focus-visible:outline-brand', confirmed ? 'border-ok bg-ok text-white' : 'border-current bg-white')}>
               {confirmed && <Check className="size-4" strokeWidth={2.5} />}
             </span>
-            {valid ? `I received ${fmtPHP(tender, true)} cash and will return ${fmtPHP(change, true)} change.` : 'Enter the cash received to confirm.'}
+            <span className="min-w-0 break-words">{confirmText}</span>
           </label>
-          <p className="mt-5 text-[13px] text-muted">{confirmed ? 'Confirmation selected. Final action is still required.' : 'Confirm the cash count, then complete the session.'}</p>
+          <p className="mt-5 text-[13px] text-muted">
+            {confirmed ? 'Confirmation selected. Final action is still required.' : digital ? 'Verify the confirmation, then complete the session.' : 'Confirm the cash count, then complete the session.'}
+          </p>
         </Card>
         <div className="space-y-6">
           <Card className="p-6">
@@ -477,11 +674,11 @@ function Payment({ session }: { session: Session }) {
                 ['Category', session.category],
                 ['Location', slotLabel(slot)],
                 ['Duration', fmtDurationLong(q.minutes)],
-                ['Attendant', OPERATOR.name],
+                ['Attendant', attendant?.name ?? '—'],
               ]}
             />
             <p className="mt-6 text-sm leading-relaxed text-muted">Final confirmation records the payment once, marks the ticket paid, completes the session and releases {slot.id}.</p>
-            <Button variant="success" icon={Check} className="mt-5 w-full uppercase" disabled={!valid || !confirmed} onClick={complete}>
+            <Button variant="success" icon={Check} className="mt-5 w-full uppercase" disabled={!valid || !confirmed || quoteExpired} onClick={complete}>
               Confirm received & complete
             </Button>
             <Button variant="secondary" className="mt-5 w-full" onClick={() => navigate(`/exit/fee/${session.ticketId}`)}>
@@ -498,6 +695,7 @@ function Payment({ session }: { session: Session }) {
 /* ---------- 5. Receipt ---------- */
 
 export function ReceiptSlip({ session }: { session: Session }) {
+  const lw = 'w-[175px]'
   const slot = useSlot(session.slotId)
   const p = session.payment!
   const exit = session.exit!
@@ -515,27 +713,28 @@ export function ReceiptSlip({ session }: { session: Session }) {
           PAYMENT RECEIPT · {short} · {fmtTime(p.paidAt)}
         </div>
         <Badge tone="ok" upper className="mt-3 py-1.5">
-          Paid · {p.method}
+          Paid · {p.method === 'Digital' ? (p.provider ?? 'Digital') : 'Cash'}
         </Badge>
       </div>
       <div className="mt-3 space-y-3.5 border-t border-line pt-5 text-sm">
         <div className={label}>Ticket ID</div>
         <div className="tabular text-base">{session.ticketId}</div>
-        <Rows size="sm" labelWidth="w-[175px]" className="text-sm" rows={[['Category', session.category], ['Location', slotLabel(slot)]]} />
+        <Rows size="sm" labelWidth={lw} className="text-sm" rows={[['Category', session.category], ['Location', slotLabel(slot)]]} />
         <div className={label}>Entry</div>
         <div>{fmtLong(session.entry)}</div>
         <div className={label}>Exit</div>
         <div>{fmtLong(exit)}</div>
-        <Rows size="sm" labelWidth="w-[175px]" className="text-sm" rows={[['Duration', fmtDurationLong(minutes)]]} />
+        <Rows size="sm" labelWidth={lw} className="text-sm" rows={[['Duration', fmtDurationLong(minutes)]]} />
       </div>
       <div className="mt-4 space-y-3 border-t border-line pt-5">
         <Rows
           size="sm"
-          labelWidth="w-[175px]"
+          labelWidth={lw}
           className="text-sm"
           rows={[
             [`Initial · ${session.rate.initialMin / 60} hour`, fmtPHP(q.initial, true)],
             [`Extra · ${q.increments} × ${session.rate.incrementMin} min`, fmtPHP(q.additional, true)],
+            ...(p.lostTicketFee ? ([['Lost-ticket fee', fmtPHP(p.lostTicketFee, true)]] as [string, string][]) : []),
           ]}
         />
         <div className="flex items-end justify-between pt-1">
@@ -546,11 +745,18 @@ export function ReceiptSlip({ session }: { session: Session }) {
       <div className="mt-4 space-y-3 border-t border-line pt-5 text-sm">
         <Rows
           size="sm"
-          labelWidth="w-[175px]"
+          labelWidth={lw}
           className="text-sm"
           rows={[
-            [p.method === 'Cash' ? 'Cash received' : 'Digital payment', fmtPHP(p.tender, true)],
-            ['Change', fmtPHP(p.change, true)],
+            ...(p.method === 'Cash'
+              ? ([
+                  ['Cash received', fmtPHP(p.tender, true)],
+                  ['Change', fmtPHP(p.change, true)],
+                ] as [string, string][])
+              : ([
+                  [`${p.provider ?? 'Digital'} payment`, fmtPHP(p.tender, true)],
+                  ['Reference', <span className="tabular break-all">{p.reference ?? '—'}</span>],
+                ] as [string, ReactNode][])),
             ['Attendant', p.attendant],
           ]}
         />
@@ -571,6 +777,17 @@ function Receipt({ session }: { session: Session }) {
   const slot = useSlot(session.slotId)
   const p = session.payment!
   const fresh = state.lastCompleted === session.ticketId
+  const tx = state.transactions.find((x) => x.id === p.transactionId)
+  useNow(5000)
+  const canOverride = !!tx && !overrideBlocker(state, tx)
+  const [overriding, setOverriding] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const print = async () => {
+    setPrinting(true)
+    const r = await printReceipt(receiptJob(session, slot, false))
+    setPrinting(false)
+    toast(r.ok ? r.message : `${r.message} · Payment is still recorded`, r.ok ? 'ok' : 'warn')
+  }
   return (
     <ExitLayout stage={4} links={{ 0: '/exit' }} title="Payment completed" sub="Payment Successful. Thank you for parking with Naga Smart Park!" snapshot="ok" snapshotLabel={snapshotLabel(p.paidAt, true)}>
       <div className="grid gap-7 lg:grid-cols-[450px_1fr]">
@@ -587,24 +804,32 @@ function Receipt({ session }: { session: Session }) {
               rows={[
                 ['Session', 'Completed · cannot be charged again'],
                 [`Space ${slot.id}`, `${slot.status === 'available' ? 'Available' : 'Reassigned'} · released at ${fmtTime(session.exit!)}`],
-                ['Payment', `${fmtPHP(p.amount, true)} confirmed · ${p.method}`],
+                ['Payment', `${fmtPHP(p.amount, true)} confirmed · ${methodLabel(p)}`],
               ]}
             />
-            <Button icon={Printer} className="mt-6 w-full uppercase" onClick={() => toast('Receipt sent to exit lane printer')}>
-              Print receipt
+            <Button icon={Printer} className="mt-6 w-full uppercase" onClick={print} disabled={printing}>
+              {printing ? 'Sending to printer…' : 'Print receipt'}
             </Button>
             <Button variant="secondary" icon={ScanLine} className="mt-5 w-full uppercase" onClick={() => navigate('/exit')}>
               Next scan
             </Button>
+            {canOverride && (
+              <button onClick={() => setOverriding(true)} className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 text-sm text-muted underline-offset-4 hover:text-bad hover:underline">
+                <Undo2 className="size-4" strokeWidth={1.75} />
+                Void and redo payment · supervisor
+              </button>
+            )}
+            {overriding && tx && <SupervisorOverride tx={tx} onClose={() => setOverriding(false)} />}
           </Card>
+          <CorrectionNote session={session} />
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="rounded-2xl bg-ok-50 px-6 py-7 text-ok">
               <div className="tabular text-[32px] leading-none">{stats.available}</div>
               <div className="mt-4 text-sm">Spaces available{fresh ? ' · +1' : ''}</div>
             </div>
             <div className="rounded-2xl bg-brand-50 px-6 py-7 text-brand">
-              <div className="tabular text-[32px] leading-none">{fmtPHP(stats.revenue)}</div>
-              <div className="mt-4 text-sm">Today's revenue{fresh ? ` · +${p.amount}` : ''}</div>
+              <div className="tabular break-words text-[clamp(20px,4vw,32px)] leading-tight">{fmtPHP(stats.revenue, true)}</div>
+              <div className="mt-4 text-sm">Net collections · all recorded dates</div>
             </div>
           </div>
           <Note tone="ok" icon={CircleCheck} title="Receipt reprints do not create a payment">
@@ -659,7 +884,7 @@ function Invalid({ id }: { id: string }) {
             {[
               ['Try scanning again', 'Flatten the ticket and keep the full QR inside the camera guide.'],
               ['Enter the ticket ID', 'Use only the printed NSP ticket ID. No vehicle plate lookup.'],
-              ['Request authorized assistance', 'If the session remains unknown, follow facility exception policy.'],
+              ['Lost ticket?', 'Find the session by vehicle type and parking slot. A lost-ticket fee applies.'],
             ].map(([t, d], i) => (
               <li key={t} className="flex gap-3.5">
                 <Badge className="h-fit py-1.5">{i + 1}</Badge>
@@ -670,7 +895,10 @@ function Invalid({ id }: { id: string }) {
               </li>
             ))}
           </ol>
-          <Button variant="secondary" className="mt-6 w-full" onClick={() => navigate('/exit')}>
+          <Button icon={TicketX} className="mt-6 w-full" onClick={() => navigate('/exit/lost')}>
+            Start a lost-ticket checkout
+          </Button>
+          <Button variant="secondary" className="mt-3 w-full" onClick={() => navigate('/exit')}>
             Back to exit dashboard
           </Button>
         </Card>
@@ -747,6 +975,7 @@ function AlreadyPaid({ session }: { session: Session }) {
       <div className="grid gap-7 lg:grid-cols-[1fr_450px]">
         <Card className="h-fit p-6">
           <CardHead title="Existing confirmed payment" />
+          <CorrectionNote session={session} className="mt-5" />
           <div className="mt-5">
             <IconCircle icon={BadgeCheck} />
           </div>
@@ -760,7 +989,7 @@ function AlreadyPaid({ session }: { session: Session }) {
               ['Ticket ID', <span className="tabular">{session.ticketId}</span>],
               ['Transaction', <span className="tabular">{p.transactionId}</span>],
               ['Paid timestamp', fmtLong(p.paidAt)],
-              ['Payment details', p.method === 'Cash' ? `Cash ${fmtPHP(p.tender, true)} · Change ${fmtPHP(p.change, true)}` : `Digital ${fmtPHP(p.tender, true)}`],
+              ['Payment details', p.method === 'Cash' ? `Cash ${fmtPHP(p.tender, true)} · Change ${fmtPHP(p.change, true)}` : `${methodLabel(p)} · ${fmtPHP(p.tender, true)}`],
               ['Attendant', p.attendant],
               ['Session / space', `Completed · ${slot.id} released`],
             ]}
@@ -770,7 +999,11 @@ function AlreadyPaid({ session }: { session: Session }) {
           <Card className="p-6">
             <CardHead title="Receipt access only" />
             <p className="mt-5 text-[15px] leading-relaxed text-muted">The stored payment record is final. Receipt reprinting refers to the original transaction and cannot charge the session again.</p>
-            <Button icon={Printer} className="mt-6 w-full uppercase" onClick={() => toast(`Reprinted receipt for ${p.transactionId}`)}>
+            <Button icon={Printer} className="mt-6 w-full uppercase" onClick={async () => {
+                const r = await printReceipt(receiptJob(session, slot, true))
+                toast(r.ok ? `${r.message} · Reprint of ${p.transactionId}` : `${r.message} · No new charge`, r.ok ? 'ok' : 'warn')
+              }}
+            >
               Reprint receipt
             </Button>
             <Button variant="secondary" icon={ScanLine} className="mt-5 w-full uppercase" onClick={() => navigate('/exit')}>
@@ -806,6 +1039,7 @@ function Closed({ session }: { session: Session }) {
       <div className="grid gap-7 lg:grid-cols-[1fr_450px]">
         <Card className="h-fit p-6">
           <CardHead title="Historical session · Read only" />
+          <CorrectionNote session={session} className="mt-5" />
           <div className="mt-5">
             <IconCircle icon={Archive} tone="neutral" />
           </div>
@@ -856,6 +1090,50 @@ function NoCheckout({ session }: { session: Session }) {
           Scan this ticket
         </Button>
       </Card>
+    </ExitLayout>
+  )
+}
+
+
+/* ---------- Ended by administrator ---------- */
+
+function Ended({ session }: { session: Session }) {
+  const slot = useSlot(session.slotId)
+  const c = session.closure
+  return (
+    <ExitLayout stage={1} links={{ 0: '/exit' }} title="Session ended by an administrator" sub="This ticket can no longer be charged at the exit." snapshot="neutral" snapshotLabel={c ? `${fmtTime(c.at)} · Ended` : undefined}>
+      <div className="grid gap-7 lg:grid-cols-[1fr_430px]">
+        <Card className="h-fit p-6">
+          <CardHead title="Ended session · Read only" />
+          <div className="mt-5">
+            <IconCircle icon={CircleSlash} tone="neutral" />
+          </div>
+          <Badge tone="neutral" upper className="mt-6 py-1.5">
+            Ended · No charge at exit
+          </Badge>
+          <div className="mt-6 text-[30px] leading-tight">This session was ended by an administrator.</div>
+          <Rows
+            className="mt-6"
+            rows={[
+              ['Ticket ID', <span className="tabular">{session.ticketId}</span>],
+              ['Vehicle / location', `${session.category} · ${slotLabel(slot)}`],
+              ['Entry timestamp', fmtLong(session.entry)],
+              ['Ended at', c ? fmtLong(c.at) : '—'],
+              ['Reason', c ? `${c.reason}${c.note ? ` · ${c.note}` : ''}` : '—'],
+              ['Uncollected fee', c ? fmtPHP(c.uncollected, true) : '—'],
+              ['Ended by', c?.by ?? '—'],
+            ]}
+          />
+        </Card>
+        <div className="space-y-6">
+          <Note tone="warn" icon={CircleAlert} title="No payment can be taken">
+            The space was released when the session ended. Contact the administrator if the vehicle is still on site.
+          </Note>
+          <Button icon={ScanLine} className="w-full uppercase" onClick={() => navigate('/exit')}>
+            Next scan
+          </Button>
+        </div>
+      </div>
     </ExitLayout>
   )
 }

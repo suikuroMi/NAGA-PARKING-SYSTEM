@@ -1,28 +1,51 @@
-import type { Category, Rate, RateConfig, Slot, State } from './types'
+import type { Category, Rate, RateConfig, Session, Slot, State, Transaction } from './types'
 import { pad2 } from '../lib/format'
+import { centavos, sumMoney } from '../lib/money'
 
-/** 16 October 2026, 10:15 PM Asia/Manila (UTC+8). */
-export const DEMO_START = Date.UTC(2026, 9, 16, 14, 15, 0)
-/** Midnight of the demo day in Asia/Manila. */
-export const DAY_START = Date.UTC(2026, 9, 15, 16, 0, 0)
-export const at = (h: number, m: number) => DAY_START + (h * 60 + m) * 60000
+/** YYYYMMDD of a timestamp in Asia/Manila (UTC+8, no DST). */
+export function manilaDateCode(t: number) {
+  const d = new Date(t + 8 * 3600000)
+  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}`
+}
+/** YYYY.MM.DD of a timestamp in Asia/Manila. */
+export const manilaDot = (t: number) => manilaDateCode(t).replace(/^(\d{4})(\d{2})(\d{2})$/, '$1.$2.$3')
 
-export const DATE_CODE = '20261016'
-export const ticketId = (n: number) => `NSP-${DATE_CODE}-${String(n).padStart(4, '0')}`
-export const txnId = (n: number) => `NSP-TXN-${DATE_CODE}-${String(n).padStart(4, '0')}`
-export const TOTAL_TODAY_TARGET = 126
+export const ticketId = (n: number, t: number) => `NSP-${manilaDateCode(t)}-${String(n).padStart(4, '0')}`
+export const txnId = (n: number, t: number) => `NSP-TXN-${manilaDateCode(t)}-${String(n).padStart(4, '0')}`
 
-export function calcFee(rate: Rate, minutes: number, grace = 0) {
+export function calcFee(rate: Rate, minutes: number, grace = 0, lost = false) {
   const extraMin = Math.max(0, minutes - rate.initialMin - grace)
   const increments = extraMin > 0 ? Math.ceil(extraMin / rate.incrementMin) : 0
+  const initial = centavos(rate.initial)
+  const additional = increments * centavos(rate.additional)
+  const lostFee = lost ? centavos(rate.lostFee ?? 0) : 0
   return {
-    initial: rate.initial,
+    initial: initial / 100,
     extraMin,
     increments,
-    additional: increments * rate.additional,
-    total: rate.initial + increments * rate.additional,
+    additional: additional / 100,
+    lostFee: lostFee / 100,
+    total: (initial + additional + lostFee) / 100,
   }
 }
+
+/* ---------- Corrections ---------- */
+
+export const refundedOf = (tx: Transaction) => sumMoney((tx.refunds ?? []).map(r=>r.amount))
+/** Revenue actually kept: 0 when voided, amount minus refunds otherwise. */
+export const netAmount = (tx: Transaction) => (tx.voided ? 0 : (centavos(tx.amount)-centavos(refundedOf(tx)))/100)
+export type TxStatus = 'Paid' | 'Partially refunded' | 'Refunded' | 'Voided'
+export function txStatus(tx: Transaction): TxStatus {
+  if (tx.voided) return 'Voided'
+  const r = refundedOf(tx)
+  if (!r) return 'Paid'
+  return r >= tx.amount - 0.001 ? 'Refunded' : 'Partially refunded'
+}
+export const TX_TONE: Record<TxStatus, 'ok' | 'warn' | 'bad'> = { Paid: 'ok', 'Partially refunded': 'warn', Refunded: 'warn', Voided: 'bad' }
+
+/** Active sessions parked longer than this are flagged as overdue. */
+export const OVERDUE_MIN = 720
+export const isOverdue = (s: Session, t: number) => s.status === 'active' && minutesOf(s.entry, t) > OVERDUE_MIN
 
 export function feeFor(rates: RateConfig, category: Category, minutes: number) {
   return calcFee(rates.categories[category], minutes, rates.grace)
@@ -32,7 +55,8 @@ export const slotLabel = (s: Pick<Slot, 'block' | 'number'>) => `Block ${s.block
 export const slotShort = (s: Pick<Slot, 'block' | 'number'>) => `${s.block}${pad2(s.number)}`
 
 export function parseSlotId(id: string) {
-  return { block: id.slice(0, 1), number: parseInt(id.slice(1), 10) }
+  const match = /^([A-Z]+)(\d+)$/.exec(id)
+  return { block: match?.[1] ?? id, number: match ? Number(match[2]) : 0 }
 }
 
 export function blocks(slots: Slot[]) {
@@ -80,17 +104,31 @@ export function computeStats(state: State) {
   const c = counts(state.slots)
   const sessions = Object.values(state.sessions)
   const active = sessions.filter((s) => s.status === 'active').length
-  const revenue = state.transactions.reduce((sum, t) => sum + t.amount, 0)
-  const cash = state.transactions.filter((t) => t.method === 'Cash').length
+  const txs = state.transactions
+  const revenue = sumMoney(txs.map(netAmount))
+  const kept = txs.filter((t) => !t.voided)
+  const cash = txs.filter((t) => t.method === 'Cash').length
+  const voided = txs.filter((t) => t.voided)
+  const refundList = txs.flatMap((t) => t.refunds ?? [])
+  const lost = kept.filter((t) => t.lostTicketFee)
+  const closed = sessions.filter((s) => s.status === 'closed')
+  const t = Date.now()
   return {
     ...c,
     occupancy: c.total ? ((c.occupied + c.claimed) / c.total) * 100 : 0,
     active,
     entered: sessions.length,
-    exited: state.transactions.length,
+    paymentRecords: txs.length,
+    completedSessions: sessions.filter(s=>s.status==='completed').length,
     revenue,
     cash,
-    digital: state.transactions.length - cash,
+    digital: txs.length - cash,
+    voids: { count: voided.length, amount: sumMoney(voided.map(x=>x.amount)) },
+    refunds: { count: refundList.length, amount: sumMoney(refundList.map(r=>r.amount)) },
+    lostTickets: { count: lost.length, fees: sumMoney(lost.map(x=>x.lostTicketFee??0)) },
+    ended: closed.length,
+    uncollected: sumMoney(closed.map(s=>s.closure?.uncollected??0)),
+    overdue: sessions.filter((s) => isOverdue(s, t)).length,
     blockCount: blocks(state.slots).length,
   }
 }
@@ -105,9 +143,22 @@ export function directions(slot: Slot) {
   return { way, bay: slot.number }
 }
 
-export function normalizeTicket(input: string) {
+/**
+ * Resolves scanned or typed input to a ticket ID. Extracts an NSP ticket ID from
+ * any text (e.g. a scanned URL); short numbers match the ticket counter suffix,
+ * preferring an active session, then the newest one.
+ */
+export function normalizeTicket(input: string, sessions: Record<string, Session>) {
   const v = input.trim().toUpperCase()
-  if (/^\d{1,4}$/.test(v)) return ticketId(parseInt(v, 10))
+  const found = v.match(/\bNSP-\d{8}-\d{4,}\b/)
+  if (found) return found[0]
+  if (/^\d{1,12}$/.test(v)) {
+    const suffix = `-${v.padStart(4, '0')}`
+    const hits = Object.values(sessions)
+      .filter((s) => s.ticketId.endsWith(suffix))
+      .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.entry - a.entry)
+    return hits[0]?.ticketId ?? `NSP-${manilaDateCode(Date.now())}${suffix}`
+  }
   return v
 }
 

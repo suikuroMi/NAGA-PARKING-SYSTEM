@@ -1,13 +1,3 @@
-'use client';
+import App from '@/App'
 
-import Kiosk from '@/kiosk/Kiosk';
-import { Toaster } from '@/components/ui';
-
-export default function KioskPage() {
-  return (
-    <>
-      <Kiosk />
-      <Toaster />
-    </>
-  );
-}
+export default function Page() { return <App /> }

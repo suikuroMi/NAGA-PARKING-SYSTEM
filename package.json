@@ -2,17 +2,35 @@
   "name": "naga-smart-parking",
   "version": "1.0.0",
   "private": true,
+  "overrides": {
+    "postcss": "$postcss"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:setup": "node scripts/setup-db.js"
+    "db:setup": "tsx scripts/database.ts",
+    "db:demo": "tsx scripts/database.ts --demo",
+    "test": "tsx --test tests/*.test.ts",
+    "test:rehearsal": "node scripts/rehearse.cjs",
+    "test:reliability": "node scripts/reliability.cjs",
+    "db:start": "node scripts/start-database.cjs",
+    "db:backup": "node scripts/backup.cjs backup",
+    "https:setup": "node scripts/local-https.cjs",
+    "db:restore-test": "node scripts/backup.cjs restore-test",
+    "db:verify-recovery": "node scripts/verify-recovery.cjs",
+    "thesis:start": "npm run db:start && node scripts/serve.cjs",
+    "thesis:check": "node scripts/preflight.cjs",
+    "test:reports": "tsx scripts/check-reporting.ts",
+    "test:quality": "tsx scripts/check-quality.ts"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.59.0",
     "next": "^15.2.0",
     "pg": "^8.23.1",
+    "qr-scanner": "^1.4.2",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
@@ -21,10 +39,12 @@
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "postcss": "^8.4.0",
+    "postcss": "^8.5.32",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -34,7 +34,7 @@ export function SlotsPage() {
       title="Parking Slot Management"
       sub="Configure blocks, vehicle categories and assignment eligibility."
       right={
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button variant="secondary" icon={Plus} onClick={() => setModal('block')}>
             Add block
           </Button>
@@ -118,7 +118,7 @@ export function SlotsPage() {
           <span className="text-xs text-muted">
             Showing {rows.length ? p * PAGE + 1 : 0}–{p * PAGE + view.length} of {rows.length} spaces
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="md" disabled={p === 0} onClick={() => setPage(p - 1)}>
               Previous
             </Button>
@@ -153,9 +153,10 @@ function AddModal({ mode, onClose }: { mode: 'slot' | 'block' | null; onClose: (
   const target = mode === 'block' ? newBlock.trim().toUpperCase() : block
   const clash = mode === 'block' && existing.includes(target)
   const invalid = !/^[A-Z]$/.test(target) || clash
-  const submit = () => {
+  const submit = async () => {
     if (invalid) return
-    const added = addSlots(target, cat, mode === 'block' ? Math.max(n, 1) : n)
+    const added = await addSlots(target, cat, mode === 'block' ? Math.max(n, 1) : n)
+    if (!added.length) return
     toast(`${added.length} space${added.length === 1 ? '' : 's'} added to Block ${target}`, 'ok')
     onClose()
   }
@@ -213,8 +214,8 @@ export function EditSlotPage({ id }: { id: string }) {
   const needsReason = status === 'reserved' || status === 'unavailable'
   const dirty = status !== slot.status || cat !== slot.category || (needsReason && reason !== slot.reason)
   const canSave = !locked && dirty && (!needsReason || reason.trim().length >= 3)
-  const save = () => {
-    if (updateSlot(slot.id, { status, category: cat, reason: needsReason ? reason.trim() : 'Eligible for assignment' })) {
+  const save = async () => {
+    if (await updateSlot(slot.id, { status, category: cat, reason: needsReason ? reason.trim() : 'Eligible for assignment' })) {
       toast(`${slot.id} saved · ${cap(status)}`, 'ok')
       navigate('/admin/slots')
     }
@@ -326,7 +327,11 @@ export function EditSlotPage({ id }: { id: string }) {
                 View session
               </Button>
               <Note className="mt-5" title="Release through checkout only">
-                Confirmed exit payment closes this session and makes the space available in one completion step.
+                Confirmed exit payment closes this session and makes the space available in one completion step. If the vehicle is gone, an administrator can{' '}
+                <button className="cursor-pointer underline underline-offset-2" onClick={() => navigate(`/admin/sessions?ticket=${session.ticketId}`)}>
+                  end the stuck session
+                </button>{' '}
+                from Active sessions.
               </Note>
             </Card>
           ) : (

@@ -1,6 +1,6 @@
-import type { ActivityEvent, Attendant, Category, RateConfig, Session, Slot, State, Transaction } from './types'
+import type { ActivityEvent, Attendant, Category, DigitalProvider, RateConfig, Session, Slot, State, Transaction } from './types'
 import { CATEGORIES as CATS } from './types'
-import { at, calcFee, DAY_START, slotShort, ticketId, txnId } from './logic'
+import { calcFee, manilaDot, slotShort, ticketId, txnId } from './logic'
 import { fmtPHP } from '../lib/format'
 
 function rng(seed: number) {
@@ -13,20 +13,34 @@ function rng(seed: number) {
   }
 }
 
-export const RATES: RateConfig = {
-  version: 'v2026.10.16',
-  effective: DAY_START,
-  grace: 0,
-  categories: {
-    Motorcycle: { initial: 20, initialMin: 60, incrementMin: 60, additional: 10 },
-    Car: { initial: 40, initialMin: 60, incrementMin: 60, additional: 20 },
-    Van: { initial: 50, initialMin: 60, incrementMin: 60, additional: 25 },
-    Other: { initial: 60, initialMin: 60, incrementMin: 60, additional: 30 },
-  },
-  history: [
-    { version: 'v2026.10.16', effective: DAY_START, by: 'City parking administrator' },
-    { version: 'v2026.09.01', effective: DAY_START - 45 * 86400000, by: 'City parking administrator' },
-  ],
+/**
+ * The seed is authored as a busy evening ending at 10:15 PM. `clock(seededAt)`
+ * maps those authored clock times so that 10:15 PM lands on `seededAt`.
+ */
+const SNAPSHOT_MIN = 22 * 60 + 15
+const clock = (seededAt: number) => (h: number, m: number) => seededAt - (SNAPSHOT_MIN - (h * 60 + m)) * 60000
+
+const DAY = 86400000
+
+function buildRates(seededAt: number): RateConfig {
+  const at = clock(seededAt)
+  const version = `v${manilaDot(seededAt)}`
+  const prior = `v${manilaDot(seededAt - 45 * DAY)}`
+  return {
+    version,
+    effective: at(0, 0),
+    grace: 0,
+    categories: {
+      Motorcycle: { initial: 20, initialMin: 60, incrementMin: 60, additional: 10, lostFee: 100 },
+      Car: { initial: 40, initialMin: 60, incrementMin: 60, additional: 20, lostFee: 150 },
+      Van: { initial: 50, initialMin: 60, incrementMin: 60, additional: 25, lostFee: 200 },
+      Other: { initial: 60, initialMin: 60, incrementMin: 60, additional: 30, lostFee: 200 },
+    },
+    history: [
+      { version, effective: at(0, 0), by: 'City parking administrator' },
+      { version: prior, effective: at(0, 0) - 45 * DAY, by: 'City parking administrator' },
+    ],
+  }
 }
 
 function buildSlots(): Slot[] {
@@ -39,15 +53,21 @@ function buildSlots(): Slot[] {
   return slots
 }
 
-const ATTENDANTS: Attendant[] = [
-  { id: 'ATT-001', name: 'Maria Santos', email: 'maria.santos@nsp.gov', lane: 'Lane A', status: 'Active', lastAccess: at(22, 15) },
-  { id: 'ATT-002', name: 'Joel Reyes', email: 'joel.reyes@nsp.gov', lane: 'Lane B', status: 'On break', lastAccess: at(21, 58) },
-  { id: 'ATT-003', name: 'Ana Cruz', email: 'ana.cruz@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(20, 42) },
-  { id: 'ATT-004', name: 'Mark Dela Cruz', email: 'mark.dela.cruz@nsp.gov', lane: 'Lane B', status: 'Pending' },
-]
+function buildAttendants(at: (h: number, m: number) => number): Attendant[] {
+  const unconfigured = { pinSalt: '', pinHash: '', failedAttempts: 0 }
+  return [
+    { id: 'ATT-001', name: 'Maria Santos', email: 'maria.santos@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(22, 15), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-002', name: 'Joel Reyes', email: 'joel.reyes@nsp.gov', lane: 'Lane B', status: 'Offline', lastAccess: at(21, 58), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-003', name: 'Ana Cruz', email: 'ana.cruz@nsp.gov', lane: 'Lane A', status: 'Offline', lastAccess: at(20, 42), mustChangePin: false, ...unconfigured },
+    { id: 'ATT-004', name: 'Mark Dela Cruz', email: 'mark.dela.cruz@nsp.gov', lane: 'Lane B', status: 'Pending', mustChangePin: true, ...unconfigured },
+  ]
+}
 
-export function buildSeed(): State {
+export function buildSeed(seededAt = Date.now()): State {
+  const at = clock(seededAt)
+  const RATES = buildRates(seededAt)
   const rand = rng(20261016)
+  const refRand = rng(4242)
   const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)]
   const slots = buildSlots()
   const byId = new Map(slots.map((s) => [s.id, s]))
@@ -57,7 +77,7 @@ export function buildSeed(): State {
   const mkSession = (n: number, slotId: string, entry: number): Session => {
     const slot = byId.get(slotId)!
     const s: Session = {
-      ticketId: ticketId(n),
+      ticketId: ticketId(n, seededAt),
       category: slot.category,
       slotId,
       entry,
@@ -89,6 +109,8 @@ export function buildSeed(): State {
     B01: { n: 42, entry: at(19, 12) },
     C10: { n: 57, entry: at(19, 48) },
     C11: { n: 71, entry: at(20, 6) },
+    // Overdue example: parked since early morning (>12 h before the snapshot).
+    C09: { n: 88, entry: at(5, 40) },
   }
   const fixedCompleted = [7, 8, 12]
   const used = new Set<number>([...Object.values(fixedActive).map((f) => f.n), ...fixedCompleted])
@@ -182,9 +204,16 @@ export function buildSeed(): State {
     const minutes = Math.floor((c.exit - c.entry) / 60000)
     const amount = calcFee(rate(slot.category), minutes).total
     const tender = c.method === 'Cash' ? Math.ceil(amount / 50) * 50 + (rand() < 0.35 ? 50 : 0) : amount
+    const digital =
+      c.method === 'Digital'
+        ? {
+            provider: (refRand() < 0.7 ? 'GCash' : 'Maya') as DigitalProvider,
+            reference: Array.from({ length: 13 }, (_, k) => (k === 0 ? 1 + Math.floor(refRand() * 9) : Math.floor(refRand() * 10))).join(''),
+          }
+        : {}
     const t: Transaction = {
-      id: txnId(i + 1),
-      ticketId: ticketId(c.n),
+      id: txnId(i + 1, seededAt),
+      ticketId: ticketId(c.n, seededAt),
       category: slot.category,
       slotId: c.slotId,
       entry: c.entry,
@@ -194,6 +223,7 @@ export function buildSeed(): State {
       method: c.method,
       tender,
       change: tender - amount,
+      ...digital,
       attendant: c.attendant,
     }
     sessions[t.ticketId] = {
@@ -206,7 +236,7 @@ export function buildSeed(): State {
       rate: rate(t.category),
       grace: 0,
       status: 'completed',
-      payment: { amount, method: c.method, tender, change: t.change, attendant: c.attendant, paidAt: c.exit, transactionId: t.id },
+      payment: { amount, method: c.method, tender, change: t.change, ...digital, attendant: c.attendant, paidAt: c.exit, transactionId: t.id },
     }
     return t
   })
@@ -220,14 +250,15 @@ export function buildSeed(): State {
       event: t.method === 'Cash' ? 'Parking session completed' : 'Digital payment confirmed',
       ref: t.ticketId,
       result: `${fmtPHP(t.amount)} · ${t.slotId} released`,
+      actor: t.attendant,
     }),
   )
-  activity.push({ id: 'ev-c12', at: at(22, 8), event: 'Slot marked unavailable', ref: 'Block C — Slot 12', result: 'Maintenance · no assignment' })
+  activity.push({ id: 'ev-c12', at: at(22, 8), event: 'Slot marked unavailable', ref: 'Block C — Slot 12', result: 'Maintenance · no assignment', actor: 'Administrator' })
   Object.values(sessions)
     .filter((s) => s.status === 'active' && s.entry > at(21, 20))
     .forEach((s) => {
       const slot = byId.get(s.slotId)!
-      activity.push({ id: `ev-in-${s.ticketId}`, at: s.entry, event: 'Ticket issued', ref: s.ticketId, result: `${s.category} · ${slotShort(slot)} occupied` })
+      activity.push({ id: `ev-in-${s.ticketId}`, at: s.entry, event: 'Ticket issued', ref: s.ticketId, result: `${s.category} · ${slotShort(slot)} occupied`, actor: 'Kiosk E1' })
     })
   activity.sort((a, b) => b.at - a.at)
 
@@ -237,13 +268,16 @@ export function buildSeed(): State {
     transactions,
     activity,
     rates: RATES,
-    attendants: ATTENDANTS,
+    attendants: buildAttendants(at),
     nextTicket: 127,
     nextTxn: transactions.length + 1,
     checkout: null,
     lastCompleted: null,
     lastIssued: null,
-    claim: null,
-    settings: { welcomeResetSec: 15, autoWelcome: true, receiptPrinters: 2 },
+    claims: [],
+    settings: { welcomeResetSec: 15, idleTimeoutSec: 60, exitLockMin: 10, autoWelcome: true, receiptPrinters: 2 },
+    seededAt,
+    exitSession: null,
+    admin: { pinSalt: '', pinHash: '', failedAttempts: 0 },
   }
 }

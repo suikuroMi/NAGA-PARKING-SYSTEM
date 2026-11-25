@@ -1,5 +1,7 @@
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { Info, Lock, X, type LucideIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import QR from 'qrcode'
+import { Info, LoaderCircle, Lock, X, type LucideIcon } from 'lucide-react'
 
 export type Tone = 'brand' | 'ok' | 'warn' | 'bad' | 'neutral'
 
@@ -39,16 +41,17 @@ export function Badge({ tone = 'brand', dot = true, upper, children, className }
   )
 }
 
-type Variant = 'primary' | 'secondary' | 'success' | 'muted' | 'soft'
+type Variant = 'primary' | 'secondary' | 'success' | 'muted' | 'soft' | 'danger'
 const variants: Record<Variant, string> = {
   primary: 'bg-brand text-white hover:bg-brand-600 shadow-[0_1px_0_rgba(15,23,42,0.04)]',
   success: 'bg-ok text-white hover:brightness-95',
   secondary: 'bg-white text-brand border border-line hover:border-brand/40 hover:bg-brand-50/40',
   muted: 'bg-slate-100 text-muted border border-line',
   soft: 'bg-brand-50 text-brand hover:bg-brand-100',
+  danger: 'bg-white text-bad border border-bad-200 hover:bg-bad-50',
 }
 const sizes = {
-  xl: 'h-[78px] px-8 text-[22px] rounded-lg gap-3 uppercase tracking-[0.01em]',
+  xl: 'min-h-[64px] px-4 py-3 text-base sm:h-[78px] sm:px-8 sm:text-[22px] rounded-lg gap-3 uppercase tracking-[0.01em] whitespace-normal leading-tight',
   lg: 'h-12 px-6 text-[15px] rounded-lg gap-2.5',
   md: 'h-10 px-4 text-sm rounded-lg gap-2',
   sm: 'h-8 px-3 text-[13px] rounded-md gap-1.5',
@@ -61,20 +64,29 @@ export function Button({
   children,
   className,
   disabled,
+  onClick,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: keyof typeof sizes; icon?: LucideIcon }) {
+  const [busy, setBusy] = useState(false)
   return (
     <button
       {...rest}
-      disabled={disabled}
+      disabled={disabled || busy}
+      aria-busy={busy}
+      onClick={async event => {
+        if(busy || !onClick) return
+        setBusy(true)
+        try { await onClick(event) } catch { /* The API client displays the error; keep the form open. */ }
+        finally { setBusy(false) }
+      }}
       className={cx(
         'inline-flex shrink-0 cursor-pointer items-center justify-center font-normal whitespace-nowrap transition-[background,border-color,filter,transform] duration-150 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed',
-        disabled ? variants.muted : variants[variant],
+        disabled || busy ? variants.muted : variants[variant],
         sizes[size],
         className,
       )}
     >
-      {Icon && <Icon className={size === 'xl' ? 'size-6' : size === 'sm' ? 'size-3.5' : 'size-[18px]'} strokeWidth={1.75} />}
+      {busy ? <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden /> : Icon && <Icon className={size === 'xl' ? 'size-6' : size === 'sm' ? 'size-3.5' : 'size-[18px]'} strokeWidth={1.75} />}
       {children}
     </button>
   )
@@ -82,7 +94,7 @@ export function Button({
 
 export function Card({ children, className, ...rest }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <section {...rest} className={cx('rounded-2xl border border-line bg-white', className)}>
+    <section {...rest} className={cx('min-w-0 rounded-2xl border border-line bg-white', className)}>
       {children}
     </section>
   )
@@ -90,8 +102,8 @@ export function Card({ children, className, ...rest }: { children: ReactNode; cl
 
 export function CardHead({ title, sub, right, className }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; className?: string }) {
   return (
-    <div className={cx('flex items-start justify-between gap-4', className)}>
-      <div>
+    <div className={cx('flex flex-wrap items-start justify-between gap-4', className)}>
+      <div className="min-w-0 flex-1">
         <h2 className="text-lg leading-tight text-ink">{title}</h2>
         {sub && <p className="mt-1.5 text-[13px] text-muted">{sub}</p>}
       </div>
@@ -123,9 +135,9 @@ export function Rows({ rows, labelWidth = 'w-[175px]', className, size = 'md' }:
   return (
     <dl className={cx(size === 'md' ? 'space-y-[18px] text-sm' : 'space-y-3 text-[13px]', className)}>
       {rows.map(([k, v], i) => (
-        <div key={i} className="flex gap-3">
+        <div key={i} className="flex flex-col gap-1 sm:flex-row sm:gap-3">
           <dt className={cx('shrink-0 text-muted', labelWidth)}>{k}</dt>
-          <dd className="min-w-0 text-ink">{v}</dd>
+          <dd className="min-w-0 break-words text-ink">{v}</dd>
         </div>
       ))}
     </dl>
@@ -226,16 +238,34 @@ export function Toaster() {
 /* ---------------- Modal ---------------- */
 
 export function Modal({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+    const dialog = ref.current
+    const trigger = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    dialog?.showModal()
+    document.body.style.overflow = 'hidden'
+    return () => {
+      dialog?.close()
+      document.body.style.overflow = overflow
+      if (trigger?.isConnected) trigger.focus()
+    }
+  }, [open])
   if (!open) return null
-  return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-[2px]" onMouseDown={onClose}>
-      <div role="dialog" aria-modal aria-label={title} className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-fade-up" onMouseDown={(e) => e.stopPropagation()}>
+  // Portal to <body> so animated (transformed) page wrappers can't trap the overlay under sticky headers.
+  return createPortal(
+      <dialog ref={ref} aria-label={title} onKeyDown={event => {
+        if(event.key!=='Tab'||!event.currentTarget.contains(document.activeElement))return
+        const fields=Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]')).filter(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden')
+        const first=fields[0],last=fields.at(-1)
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}
+      }} onCancel={event => {event.preventDefault(); onClose()}} onMouseDown={event => {
+        if(event.target!==event.currentTarget)return
+        const rect=event.currentTarget.getBoundingClientRect()
+        if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)onClose()
+      }} className="fixed inset-0 m-auto max-h-[92dvh] w-[calc(100%_-_2rem)] max-w-md overflow-y-auto rounded-2xl border-0 bg-white p-0 text-ink shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-[2px]">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h3 className="text-lg">{title}</h3>
           <button onClick={onClose} className="grid size-8 cursor-pointer place-items-center rounded-md text-muted hover:bg-slate-100" aria-label="Close">
@@ -243,30 +273,29 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
           </button>
         </div>
         <div className="space-y-4 px-6 py-5">{children}</div>
-        {footer && <div className="flex justify-end gap-3 border-t border-line px-6 py-4">{footer}</div>}
-      </div>
-    </div>
+        {footer && <div className="flex flex-wrap justify-end gap-3 border-t border-line px-6 py-4">{footer}</div>}
+      </dialog>,
+    document.body,
   )
 }
 
 /* ---------------- QR-style code ---------------- */
 
-export function QRCode({ value, size = 226 }: { value: string; size?: number }) {
-  const n = 29
-  let h = 2166136261
-  for (const ch of value) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
-  const bit = (x: number, y: number) => {
-    let v = Math.imul(h ^ (x * 374761393 + y * 668265263), 1274126177)
-    v ^= v >>> 13
-    return (v & 7) < 4
-  }
-  const inFinder = (x: number, y: number) => (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8)
-  const cells: string[] = []
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (!inFinder(x, y) && bit(x, y)) cells.push(`M${x} ${y}h1v1h-1z`)
-  const finder = (x: number, y: number) => `M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5zM${x + 2} ${y + 2}h3v3h-3z`
+const QUIET = 2
+
+/** Real, scannable QR code rendered as crisp SVG modules. */
+export function QRCode({ value, size = 226, color = '#15243b' }: { value: string; size?: number; color?: string }) {
+  const path = useMemo(() => {
+    const { modules } = QR.create(value, { errorCorrectionLevel: 'M' })
+    const n = modules.size
+    const d: string[] = []
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (modules.get(y, x)) d.push(`M${x + QUIET} ${y + QUIET}h1v1h-1z`)
+    return { d: d.join(''), n: n + QUIET * 2 }
+  }, [value])
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${n} ${n}`} shapeRendering="crispEdges" role="img" aria-label={`QR code for ${value}`}>
-      <path d={cells.join('') + finder(0, 0) + finder(n - 7, 0) + finder(0, n - 7)} fill="#15243b" fillRule="evenodd" />
+    <svg width={size} height={size} className="max-w-full h-auto" viewBox={`0 0 ${path.n} ${path.n}`} shapeRendering="crispEdges" role="img" aria-label={`QR code for ${value}`}>
+      <rect width={path.n} height={path.n} fill="#fff" />
+      <path d={path.d} fill={color} />
     </svg>
   )
 }

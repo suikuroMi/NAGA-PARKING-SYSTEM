@@ -1,0 +1,19 @@
+{
+  "executedAt": "2026-11-18T01:55:36.594Z",
+  "isolatedDatabase": true,
+  "checks": [
+    "Dashboard separates live occupancy and dated activity",
+    "Presets, totals, category/attendant reconciliation and estimated-time notice",
+    "CSV and print match screen; print remains fixed while polling updates the screen",
+    "Invalid/reversed ranges block exports; empty periods display zero",
+    "History displays separate dated checkout/payment values and exports provenance without browser errors"
+  ],
+  "totals": {
+    "gross": 1332,
+    "voids": 10.1,
+    "refunds": 0.3,
+    "net": 1321.6
+  },
+  "paymentRecords": 120,
+  "estimatedRecords": 40
+}

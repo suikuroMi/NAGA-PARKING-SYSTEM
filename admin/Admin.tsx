@@ -5,8 +5,17 @@ import TransactionsPage from './TransactionsPage'
 import AttendantsPage from './AttendantsPage'
 import SettingsPage from './SettingsPage'
 import { match } from '../lib/router'
+import AdminGate from './AdminGate'
 
 export default function Admin({ path, params }: { path: string; params: URLSearchParams }) {
+  return (
+    <AdminGate>
+      <AdminRoutes path={path} params={params} />
+    </AdminGate>
+  )
+}
+
+function AdminRoutes({ path, params }: { path: string; params: URLSearchParams }) {
   const edit = match('/admin/slots/:id', path)
   if (edit) return <EditSlotPage key={edit.id} id={edit.id} />
   switch (path) {

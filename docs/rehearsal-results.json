@@ -1,0 +1,44 @@
+{
+  "executedAt": "2026-11-18T02:03:10.934Z",
+  "kind": "Automated production-browser rehearsal, not human presentation timing",
+  "database": "naga_rehearsal_7c695dddcb9b",
+  "rounds": [
+    {
+      "round": 1,
+      "ticket": "NSP-20261118-0138",
+      "workflowMs": 8847,
+      "appRestartMs": 2097,
+      "firstStartMs": 2170,
+      "paymentCount": 1,
+      "spaceReleased": true,
+      "outageBanner": true,
+      "reconnected": true,
+      "persistedAfterRestart": true,
+      "pageErrors": []
+    },
+    {
+      "round": 2,
+      "ticket": "NSP-20261118-0139",
+      "workflowMs": 9286,
+      "appRestartMs": 2243,
+      "paymentCount": 1,
+      "spaceReleased": true,
+      "outageBanner": true,
+      "reconnected": true,
+      "persistedAfterRestart": true,
+      "pageErrors": []
+    },
+    {
+      "round": 3,
+      "ticket": "NSP-20261118-0140",
+      "workflowMs": 8797,
+      "appRestartMs": 2252,
+      "paymentCount": 1,
+      "spaceReleased": true,
+      "outageBanner": true,
+      "reconnected": true,
+      "persistedAfterRestart": true,
+      "pageErrors": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "failures": [
+    {
+      "route": "/admin/rates",
+      "width": 320,
+      "scrollWidth": 336,
+      "scrollX": 0,
+      "offenders": []
+    }
+  ],
+  "errors": [],
+  "external": []
+}

@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
+import { localDate, transactionsInRange, collectionTotals } from '../store/reporting'
 import { ParkingSquare, Search, Ticket, CircleAlert } from 'lucide-react'
 import AdminLayout from './AdminLayout'
+import EndSessionModal from './EndSessionModal'
 import { ActivityTable, CheckoutPanel, FacilityMap, Overview, Stat, StatGrid } from './widgets'
 import { Badge, Button, Card, CardHead, cx, Note, Rows, Select } from '../components/ui'
 import { navigate } from '../lib/router'
 import { quoteFor, useNow, useStore } from '../store/store'
-import { blockLabel, blocks, computeStats, slotLabel } from '../store/logic'
-import { CATEGORIES, type Category, type Slot, type SlotStatus } from '../store/types'
+import { blockLabel, blocks, computeStats, isOverdue, netAmount, slotLabel } from '../store/logic'
+import { CATEGORIES, type Category, type Session, type Slot, type SlotStatus } from '../store/types'
 import { fmtDay, fmtDayShort, fmtDurationLong, fmtDurationShort, fmtLong, fmtPHP, fmtTime } from '../lib/format'
 
 function LiveBadge() {
@@ -36,111 +38,8 @@ export function DashboardPage() {
   )
 }
 
-export function ReportsPage() {
-  const state = useStore((s) => s)
-  const t = useNow()
-  const stats = computeStats(state)
-  const byCat = CATEGORIES.map((c) => {
-    const txs = state.transactions.filter((x) => x.category === c)
-    return {
-      c,
-      count: txs.length,
-      revenue: txs.reduce((n, x) => n + x.amount, 0),
-      avg: txs.length ? Math.round(txs.reduce((n, x) => n + x.minutes, 0) / txs.length) : 0,
-    }
-  })
-  const maxRev = Math.max(...byCat.map((b) => b.revenue), 1)
-  const byAtt = Object.entries(
-    state.transactions.reduce<Record<string, { n: number; rev: number }>>((acc, x) => {
-      acc[x.attendant] ??= { n: 0, rev: 0 }
-      acc[x.attendant].n++
-      acc[x.attendant].rev += x.amount
-      return acc
-    }, {}),
-  ).sort((a, b) => b[1].rev - a[1].rev)
-  const avgTicket = stats.exited ? stats.revenue / stats.exited : 0
-  const exportCsv = () => {
-    const rows = [['Category', 'Completed', 'Revenue (PHP)', 'Average minutes'], ...byCat.map((b) => [b.c, b.count, b.revenue, b.avg])]
-    download(`nsp-report-${fmtDayShort(t).replace(/ /g, '-')}.csv`, rows)
-  }
-  return (
-    <AdminLayout
-      active="reports"
-      title="Reports and analytics"
-      sub={`${fmtDay(t)} · ${fmtTime(t)} · Daily operations report`}
-      right={
-        <div className="flex items-center gap-3">
-          <LiveBadge />
-          <Button variant="secondary" size="md" onClick={exportCsv}>
-            Export report
-          </Button>
-        </div>
-      }
-    >
-      <Overview state={state} />
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr_320px]">
-        <Card className="p-5">
-          <CardHead title="Revenue by category" sub="Confirmed payments today" />
-          <ul className="mt-5 space-y-4">
-            {byCat.map((b) => (
-              <li key={b.c}>
-                <div className="flex justify-between text-[13px]">
-                  <span>{b.c}</span>
-                  <span className="tabular">{fmtPHP(b.revenue)}</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-canvas">
-                  <div className="h-full rounded-full bg-brand" style={{ width: `${(b.revenue / maxRev) * 100}%` }} />
-                </div>
-                <div className="tabular mt-1.5 text-[11px] text-muted">
-                  {b.count} sessions · avg {fmtDurationShort(b.avg)}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card className="p-5">
-          <CardHead title="Attendant collections" sub="Exit lane payments today" />
-          <table className="mt-5 w-full text-left text-[13px]">
-            <thead className="text-[11px] text-muted">
-              <tr>
-                <th className="pb-3 font-normal">Attendant</th>
-                <th className="pb-3 font-normal">Payments</th>
-                <th className="pb-3 text-right font-normal">Collected</th>
-              </tr>
-            </thead>
-            <tbody>
-              {byAtt.map(([name, v]) => (
-                <tr key={name} className="border-t border-line">
-                  <td className="py-3.5">{name}</td>
-                  <td className="tabular">{v.n}</td>
-                  <td className="tabular text-right">{fmtPHP(v.rev)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-        <div className="grid content-start gap-3">
-          <Stat label="Average ticket" value={fmtPHP(Math.round(avgTicket))} note="Revenue ÷ completed sessions" />
-          <Stat label="Payment mix" value={`${stats.cash} / ${stats.digital}`} note="Cash / digital confirmed" />
-          <Stat label="Turnover" value={`${(stats.exited / stats.total).toFixed(1)}×`} note="Completed sessions per space" />
-        </div>
-      </div>
-      <div className="mt-5">
-        <ActivityTable events={state.activity} />
-      </div>
-    </AdminLayout>
-  )
-}
-
-export function download(name: string, rows: (string | number)[][]) {
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
-}
+export { default as ReportsPage } from './ReportsPage'
+export { downloadCsv as download } from '../lib/csv'
 
 /* ---------------- Map ---------------- */
 
@@ -295,7 +194,8 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
   const focus = params.get('ticket')
   const [q, setQ] = useState(focus ?? '')
   const [cat, setCat] = useState<'all' | Category>('all')
-  const [stat, setStat] = useState<'all' | 'open' | 'parked'>('all')
+  const [stat, setStat] = useState<'all' | 'open' | 'parked' | 'overdue'>('all')
+  const [ending, setEnding] = useState<Session | null>(null)
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
   const rows = useMemo(
     () =>
@@ -303,9 +203,9 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
         .filter((s) => s.status === 'active')
         .filter((s) => !q.trim() || s.ticketId.includes(q.trim().toUpperCase()) || s.slotId.includes(q.trim().toUpperCase()))
         .filter((s) => cat === 'all' || s.category === cat)
-        .filter((s) => stat === 'all' || (stat === 'open') === (state.checkout?.ticketId === s.ticketId))
+        .filter((s) => stat === 'all' || (stat === 'overdue' ? isOverdue(s, t) : (stat === 'open') === (state.checkout?.ticketId === s.ticketId)))
         .sort((a, b) => (sort === 'newest' ? b.entry - a.entry : a.entry - b.entry)),
-    [state, q, cat, stat, sort],
+    [state, q, cat, stat, sort, t],
   )
   return (
     <AdminLayout active="sessions" title="Active parking sessions" sub={`${fmtDay(t)} · ${fmtTime(t)} · Issued tickets not yet completed`} right={<LiveBadge />}>
@@ -328,6 +228,7 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
                 { value: 'all', label: 'All statuses' },
                 { value: 'parked', label: 'Parked' },
                 { value: 'open', label: 'Checkout open' },
+                { value: 'overdue', label: 'Overdue (>12 h)' },
               ]}
             />
             <Select
@@ -343,6 +244,7 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Badge>{stats.active} active</Badge>
+            {stats.overdue > 0 && <Badge tone="bad">{stats.overdue} overdue</Badge>}
             <Badge tone="ok">{stats.available} available</Badge>
             <Badge tone="warn">{stats.reserved} reserved</Badge>
             <Badge tone="neutral">{stats.unavailable} unavailable</Badge>
@@ -351,7 +253,7 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
             <table className="w-full min-w-[880px] text-left text-xs [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
               <thead className="sticky top-0 bg-canvas text-[11px] text-muted">
                 <tr>
-                  {['Ticket ID', 'Vehicle category', 'Assigned parking slot', 'Entry date & time', 'Elapsed', 'Fee so far', 'Session status'].map((h) => (
+                  {['Ticket ID', 'Vehicle category', 'Assigned parking slot', 'Entry date & time', 'Elapsed', 'Fee so far', 'Session status', 'Actions'].map((h) => (
                     <th key={h} className="px-3 py-3.5 font-normal">
                       {h}
                     </th>
@@ -378,16 +280,21 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
                       <td className="tabular px-3">{fmtDurationShort(quote.minutes)}</td>
                       <td className="tabular px-3">{fmtPHP(quote.total)}</td>
                       <td className="px-3">
-                        <Badge tone={open ? 'brand' : 'warn'} className="w-[120px]">
-                          {open ? 'Checkout open' : 'Active'}
+                        <Badge tone={open ? 'brand' : isOverdue(s, t) ? 'bad' : 'warn'} className="min-w-[120px]">
+                          {open ? 'Checkout open' : isOverdue(s, t) ? `Overdue · ${fmtDurationShort(quote.minutes)}` : 'Active'}
                         </Badge>
+                      </td>
+                      <td className="px-3">
+                        <Button variant="danger" size="sm" disabled={open} title={open ? 'Checkout open at Terminal 01' : undefined} onClick={() => setEnding(s)}>
+                          End session
+                        </Button>
                       </td>
                     </tr>
                   )
                 })}
                 {!rows.length && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-muted">
+                    <td colSpan={8} className="px-3 py-10 text-center text-sm text-muted">
                       No active sessions match these filters.
                     </td>
                   </tr>
@@ -403,12 +310,15 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
             <CardHead title="Session rules" />
             <ul className="mt-4 space-y-3 text-xs leading-relaxed text-muted">
               <li>One ticket, one session, one occupied bay.</li>
-              <li>Sessions close only through confirmed exit payment.</li>
+              <li>Sessions close through confirmed exit payment, or by an administrator with a recorded reason.</li>
+              <li>Sessions parked over 12 hours are flagged as overdue.</li>
               <li>Rate version is frozen at entry for each session.</li>
             </ul>
           </Card>
         </div>
       </div>
+      <EndedSessions />
+      {ending && <EndSessionModal key={ending.ticketId} session={ending} onClose={() => setEnding(null)} />}
       <Card className="mt-5 p-5">
         <CardHead title="Facility parking map" sub="Occupied bays are linked to the sessions above" />
         <div className="mt-5">
@@ -416,5 +326,57 @@ export function SessionsPage({ params }: { params: URLSearchParams }) {
         </div>
       </Card>
     </AdminLayout>
+  )
+}
+
+function EndedSessions() {
+  const sessions = useStore((s) => s.sessions)
+  const ended = Object.values(sessions)
+    .filter((s) => s.status === 'closed' && s.closure)
+    .sort((a, b) => b.closure!.at - a.closure!.at)
+  const total = ended.reduce((n, s) => n + s.closure!.uncollected, 0)
+  return (
+    <Card className="mt-5 p-5">
+      <CardHead title="Ended without payment" sub="Sessions ended by an administrator · fee owed recorded as uncollected" right={ended.length ? <Badge tone="neutral">{fmtPHP(total)} uncollected</Badge> : undefined} />
+      <div className="mt-5 overflow-x-auto rounded-lg border border-line">
+        <table className="w-full min-w-[760px] text-left text-xs [&_td]:whitespace-nowrap">
+          <thead className="bg-canvas text-[11px] text-muted">
+            <tr>
+              {['Ticket', 'Slot', 'Reason', 'Uncollected', 'Ended at', 'By'].map((h) => (
+                <th key={h} className="px-3 py-3 font-normal">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ended.map((s) => (
+              <tr key={s.ticketId} className="border-t border-line">
+                <td className="tabular px-3 py-3.5">{s.ticketId}</td>
+                <td className="px-3">
+                  {s.category} · {s.slotId}
+                </td>
+                <td className="px-3" title={s.closure!.note}>
+                  {s.closure!.reason}
+                  {s.closure!.note ? <span className="text-muted"> · {s.closure!.note}</span> : null}
+                </td>
+                <td className="tabular px-3">{fmtPHP(s.closure!.uncollected, true)}</td>
+                <td className="tabular px-3">
+                  {fmtDayShort(s.closure!.at)} · {fmtTime(s.closure!.at)}
+                </td>
+                <td className="px-3">{s.closure!.by}</td>
+              </tr>
+            ))}
+            {!ended.length && (
+              <tr>
+                <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted">
+                  No sessions have been ended.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   )
 }

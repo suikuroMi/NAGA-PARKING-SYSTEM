@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, House, LogIn, MapPin, MousePointerClick, Printer, QrCode, ShieldCheck, Info } from 'lucide-react'
-import { Badge, Button, cx, Logo, QRCode } from '../components/ui'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check, Hand, House, LogIn, MapPin, MousePointerClick, Printer, QrCode, ShieldCheck, Info } from 'lucide-react'
+import { Badge, Button, cx, Logo, QRCode, toast } from '../components/ui'
+import { printTicket, ticketJob } from '../lib/printer'
 import { VEHICLE_ICON } from '../components/vehicle'
-import { availableFor, claimSlot, issueTicket, now, releaseClaim, useNow, useStore } from '../store/store'
+import { availableFor, claimSlot, issueTicket, now, releaseClaim, useMyClaim, useNow, useStore } from '../store/store'
 import { categoryLocation, directions, slotLabel } from '../store/logic'
 import { CATEGORIES, type Category, type Session } from '../store/types'
 import { fmtDay, fmtLong, fmtTime, ordinal, pad2 } from '../lib/format'
@@ -12,34 +13,63 @@ const STEP_OF: Record<Screen, number> = { welcome: 0, select: 1, full: 1, assign
 const STEPS = ['Welcome', 'Select Vehicle Type', 'Assigned Parking Location', 'QR Ticket']
 
 export default function Kiosk() {
+  const issuing = useRef(false)
+  const pendingTicket = useRef<string | null>(null)
   const [screen, setScreen] = useState<Screen>('welcome')
   const [fullCat, setFullCat] = useState<Category>('Car')
   const [issued, setIssued] = useState<Session | null>(null)
-  const claim = useStore((s) => s.claim)
+  const claim = useMyClaim()
+  const sessions = useStore((s) => s.sessions)
+  const idleSec = useStore((s) => s.settings.idleTimeoutSec ?? 60)
+  const autoWelcome = useStore((s) => s.settings.autoWelcome)
+  const idleEnabled = autoWelcome && (screen === 'select' || screen === 'assigned' || screen === 'full' || screen === 'ticket')
+  const idle = useIdle(idleSec, idleEnabled, screen)
 
   // A claim left behind by a previous visit is released back to the pool.
   useEffect(() => {
-    releaseClaim()
+    void releaseClaim().catch(()=>{})
   }, [])
 
-  const choose = (cat: Category) => {
-    const c = claimSlot(cat)
+  const choose = async (cat: Category) => {
+    const c = await claimSlot(cat).catch(()=>undefined)
+    if(c===undefined)return
     if (!c) {
       setFullCat(cat)
       setScreen('full')
     } else setScreen('assigned')
   }
 
-  const reset = () => {
-    releaseClaim()
+  const reset = async () => {
+    await releaseClaim()
+    pendingTicket.current = null
     setIssued(null)
     setScreen('welcome')
   }
 
+  const expire = () => {
+    idle.dismiss()
+    if (screen === 'ticket' && issued) setScreen('ready')
+    else reset()
+  }
+
+  // If another tab or the stale-claim sweep released this kiosk's claim, start over.
+  useEffect(() => {
+    if (screen !== 'assigned' || claim) return
+    const recovered = pendingTicket.current ? sessions[pendingTicket.current] : null
+    if (recovered) {
+      setIssued(recovered)
+      setScreen('ticket')
+      pendingTicket.current = null
+    } else if (!issuing.current) {
+      pendingTicket.current = null
+      setScreen('select')
+    }
+  }, [screen, claim, sessions])
+
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <KioskHeader step={STEP_OF[screen]} />
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         <div key={screen} className="mx-auto w-full max-w-[1200px] px-6 py-12 md:px-12 animate-fade-up">
           {screen === 'welcome' && <Welcome onStart={() => setScreen('select')} />}
           {screen === 'select' && <SelectVehicle onPick={choose} onBack={() => setScreen('welcome')} />}
@@ -47,14 +77,22 @@ export default function Kiosk() {
           {screen === 'assigned' && claim && (
             <Assigned
               onContinue={async () => {
-                const s = await issueTicket()
+                if (issuing.current) return
+                issuing.current = true
+                pendingTicket.current = claim.ticketId
+                const s = await issueTicket().finally(() => { issuing.current = false })
                 if (s) {
+                  pendingTicket.current = null
                   setIssued(s)
                   setScreen('ticket')
+                } else {
+                  pendingTicket.current = null
+                  toast('That space was released. Please choose your vehicle type again.', 'warn')
+                  setScreen('select')
                 }
               }}
-              onCancel={() => {
-                releaseClaim()
+              onCancel={async () => {
+                await releaseClaim()
                 setScreen('select')
               }}
             />
@@ -63,13 +101,14 @@ export default function Kiosk() {
           {screen === 'ready' && issued && <Ready session={issued} onHome={reset} />}
         </div>
       </main>
+      {idle.idle && idleEnabled && <IdlePrompt screen={screen} slotId={claim?.slotId} onStay={idle.dismiss} onExpire={expire} />}
       <footer className="border-t border-line bg-white">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-6 py-6 text-sm text-muted md:px-12">
           <span className="flex items-center gap-3">
             <ShieldCheck className="size-5 text-ok" strokeWidth={1.6} />
             Self-service entrance · No personal information required
           </span>
-          <span className="hidden text-xs sm:block">Demo kiosk · Terminal E1</span>
+          <span className="hidden text-xs sm:block">Entrance kiosk · Terminal E1</span>
         </div>
       </footer>
     </div>
@@ -81,7 +120,7 @@ function KioskHeader({ step }: { step: number }) {
   return (
     <header className="bg-white">
       <div className="mx-auto max-w-[1200px] px-6 pt-7 md:px-12">
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex items-center gap-3.5">
             <Logo />
             <div>
@@ -209,7 +248,7 @@ function SelectVehicle({ onPick, onBack }: { onPick: (c: Category) => void; onBa
 }
 
 function Assigned({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
-  const claim = useStore((s) => s.claim)!
+  const claim = useMyClaim()!
   const slots = useStore((s) => s.slots)
   const slot = slots.find((s) => s.id === claim.slotId)!
   const blockSlots = slots.filter((s) => s.block === slot.block).sort((a, b) => a.number - b.number)
@@ -223,7 +262,7 @@ function Assigned({ onContinue, onCancel }: { onContinue: () => void; onCancel: 
     <div>
       <div className="text-lg tracking-[0.02em] text-brand uppercase">Your parking location</div>
       <h1 className="mt-6 text-5xl tracking-[-0.01em] text-ink uppercase md:text-[60px]">{slotLabel(slot)}</h1>
-      <div className="mt-6 flex items-center gap-4">
+      <div className="mt-6 flex flex-wrap items-center gap-4">
         <Badge tone="warn">Temporarily claimed · Issuing ticket</Badge>
         <span className="text-lg text-muted">{claim.category}</span>
       </div>
@@ -282,46 +321,48 @@ function Assigned({ onContinue, onCancel }: { onContinue: () => void; onCancel: 
 function TicketStub({ session }: { session: Session }) {
   const slot = useStore((s) => s.slots.find((x) => x.id === session.slotId))!
   return (
-    <div className="rounded-2xl border border-line bg-white px-7 pt-7 pb-8 text-center">
+    <div className="min-w-0 rounded-2xl border border-line bg-white px-4 pt-7 pb-8 text-center sm:px-7">
       <div className="text-2xl text-ink">Naga Smart Park</div>
       <div className="mt-4 text-[13px] text-muted">Naga City People's Mall · ENTRY TICKET</div>
       <div className="mt-6 flex justify-center">
         <QRCode value={session.ticketId} />
       </div>
-      <div className="tabular mt-7 text-lg text-ink">{session.ticketId}</div>
-      <div className="mt-3 flex justify-between border-t border-line pt-4 text-base text-ink">
+      <div className="tabular mt-7 break-all text-lg text-ink">{session.ticketId}</div>
+      <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-line pt-4 text-base text-ink sm:justify-between">
         <span>{session.category}</span>
         <span className="uppercase">{slotLabel(slot)}</span>
       </div>
       <div className="tabular mt-4 text-sm text-ink">{fmtLong(session.entry)}</div>
-      <div className="mt-5 text-[11px] text-muted">QR-style demonstration · Session identification only</div>
+      <div className="mt-5 text-[11px] text-muted">Scan at exit terminal · Session identification only</div>
     </div>
   )
 }
 
 function Ticket({ session, onDone }: { session: Session; onDone: () => void }) {
-  const [printing, setPrinting] = useState(false)
+  const [busy, setBusy] = useState(false)
   const slot = useStore((s) => s.slots.find((x) => x.id === session.slotId))!
-  const print = () => {
-    setPrinting(true)
-    setTimeout(onDone, 1400)
+  const print = async () => {
+    setBusy(true)
+    const r = await printTicket(ticketJob(session, slot))
+    toast(r.ok ? r.message : `${r.message} · Ticket is still active`, r.ok ? 'ok' : 'warn')
+    onDone()
   }
   return (
     <div>
-      <h1 className="text-[46px] leading-tight tracking-[-0.01em] text-ink">Your parking ticket is ready</h1>
+      <h1 className="text-[32px] leading-tight tracking-[-0.01em] text-ink sm:text-[46px]">Your parking ticket is ready</h1>
       <p className="mt-3 text-2xl text-muted">Keep this QR ticket. You will need it when exiting the parking area.</p>
-      <div className="mt-10 grid gap-10 lg:grid-cols-[460px_1fr]">
+      <div className="mt-10 grid min-w-0 grid-cols-1 gap-10 lg:grid-cols-[460px_1fr]">
         <TicketStub session={session} />
-        <div className="pt-9">
+        <div className="min-w-0 pt-9">
           <Badge tone="ok">Space secured · {slot.id} occupied</Badge>
           <h2 className="mt-8 text-[32px] text-ink">Print. Keep. Park.</h2>
           <p className="mt-7 text-xl leading-normal text-muted">
             Follow signs to Block {slot.block} and park only in Slot {pad2(slot.number)}. Present this ticket at the exit terminal.
           </p>
-          <Button size="xl" icon={Printer} className="mt-6 w-full" onClick={print} disabled={printing}>
-            {printing ? 'Printing ticket…' : 'Print parking ticket'}
+          <Button size="xl" icon={Printer} className="mt-6 w-full" onClick={print} disabled={busy}>
+            {busy ? 'Sending to printer…' : 'Print parking ticket'}
           </Button>
-          <Button size="xl" variant="secondary" className="mt-6 w-full" onClick={onDone} disabled={printing}>
+          <Button size="xl" variant="secondary" className="mt-6 w-full" onClick={onDone} disabled={busy}>
             Done
           </Button>
           <p className="mt-9 text-sm leading-relaxed text-muted">
@@ -351,12 +392,12 @@ function Ready({ session, onHome }: { session: Session; onHome: () => void }) {
         <Check className="size-11" strokeWidth={1.4} />
       </div>
       <h1 className="mt-8 text-5xl tracking-[-0.01em] text-ink">You're ready to park.</h1>
-      <p className="mt-8 text-2xl text-muted">Your ticket is printed. Please take it with you.</p>
-      <div className="mt-10 flex w-full items-center gap-8 rounded-2xl border border-line bg-white px-9 py-9 text-left">
+      <p className="mt-8 text-2xl text-muted">Keep your QR ticket. You'll need it at the exit.</p>
+      <div className="mt-10 flex w-full flex-col items-start gap-4 rounded-2xl border border-line bg-white px-5 py-6 text-left sm:flex-row sm:items-center sm:gap-8 sm:px-9 sm:py-9">
         <MapPin className="size-10 shrink-0 text-brand" strokeWidth={1.4} />
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="text-[40px] leading-none text-ink uppercase">{slotLabel(slot)}</div>
-          <div className="mt-5 text-lg text-muted">
+          <div className="mt-5 break-words text-lg text-muted">
             {session.category} · {session.ticketId}
           </div>
         </div>
@@ -408,6 +449,77 @@ function Full({ category, onReview, onHome }: { category: Category; onReview: ()
         </Button>
       </div>
       <p className="mt-9 text-sm text-muted">Live capacity check · {fmtTime(now())}</p>
+    </div>
+  )
+}
+
+/* ---------- Idle timeout ---------- */
+
+const IDLE_PROMPT_SEC = 15
+
+/** Flags the kiosk idle after `timeoutSec` without touch or key input. */
+function useIdle(timeoutSec: number, enabled: boolean, resetKey: string) {
+  const [idle, setIdle] = useState(false)
+  const [epoch, setEpoch] = useState(0)
+  useEffect(() => {
+    setIdle(false)
+    if (!enabled) return
+    let timer = 0
+    const arm = () => {
+      clearTimeout(timer)
+      timer = window.setTimeout(() => setIdle(true), timeoutSec * 1000)
+    }
+    const events = ['pointerdown', 'keydown', 'touchstart'] as const
+    events.forEach((e) => window.addEventListener(e, arm, { passive: true }))
+    arm()
+    return () => {
+      clearTimeout(timer)
+      events.forEach((e) => window.removeEventListener(e, arm))
+    }
+  }, [timeoutSec, enabled, resetKey, epoch])
+  return { idle, dismiss: () => setEpoch((n) => n + 1) }
+}
+
+function IdlePrompt({ screen, slotId, onStay, onExpire }: { screen: Screen; slotId?: string; onStay: () => void; onExpire: () => void }) {
+  const [left, setLeft] = useState(IDLE_PROMPT_SEC)
+  const expire = useRef(onExpire)
+  expire.current = onExpire
+  useEffect(() => {
+    const id = setInterval(() => setLeft((n) => n - 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  useEffect(() => {
+    if (left <= 0) expire.current()
+  }, [left])
+  const message =
+    screen === 'ticket'
+      ? 'Your ticket stays active. The kiosk will show your parking location, then return to the welcome screen.'
+      : screen === 'assigned' && slotId
+        ? `Space ${slotId} will be released and no ticket will be issued.`
+        : 'The kiosk will return to the welcome screen for the next driver.'
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-ink/55 px-6 backdrop-blur-[2px] animate-fade-up" role="alertdialog" aria-modal="true" aria-labelledby="idle-title" aria-describedby="idle-desc">
+      <div className="w-full max-w-[560px] rounded-[28px] bg-white px-10 pt-10 pb-9 text-center shadow-2xl shadow-slate-900/30">
+        <div className="mx-auto grid size-[88px] place-items-center rounded-full bg-brand-50 text-brand">
+          <Hand className="size-10" strokeWidth={1.4} />
+        </div>
+        <h2 id="idle-title" className="mt-7 text-[40px] leading-tight tracking-[-0.01em] text-ink">
+          Are you still there?
+        </h2>
+        <p id="idle-desc" className="mt-4 text-xl leading-normal text-muted">
+          {message}
+        </p>
+        <div className="mt-8 flex items-baseline justify-center gap-2 text-brand">
+          <span className="tabular text-[64px] leading-none">{Math.max(0, left)}</span>
+          <span className="text-lg">seconds</span>
+        </div>
+        <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-brand-100">
+          <div className="h-full bg-brand transition-[width] duration-1000 ease-linear" style={{ width: `${(Math.max(0, left - 1) / IDLE_PROMPT_SEC) * 100}%` }} />
+        </div>
+        <Button size="xl" className="mt-8 w-full" onClick={onStay} autoFocus>
+          I'm still here
+        </Button>
+      </div>
     </div>
   )
 }
