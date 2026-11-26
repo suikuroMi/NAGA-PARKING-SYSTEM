@@ -82,13 +82,13 @@ export function blockLabel(list: Slot[]) {
   return runs.map((r) => `${r.cat} ${pad2(r.from)}–${pad2(r.to)}`).join(' / ')
 }
 
-/** Where a category lives, e.g. "Block A" or "Block C · 01–10". */
+/** Where a category lives, e.g. "Block A · 01–20" or "Block C · 01–10". */
 export function categoryLocation(slots: Slot[], cat: Category) {
   const parts: string[] = []
   for (const b of blocks(slots)) {
     const mine = b.slots.filter((s) => s.category === cat)
     if (!mine.length) continue
-    if (mine.length === b.slots.length) parts.push(`Block ${b.id}`)
+    if (mine.length === 1) parts.push(`Block ${b.id} · ${pad2(mine[0].number)}`)
     else parts.push(`Block ${b.id} · ${pad2(mine[0].number)}–${pad2(mine[mine.length - 1].number)}`)
   }
   return parts.join(', ') || 'Not configured'

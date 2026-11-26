@@ -49,7 +49,8 @@ function buildSlots(): Slot[] {
     slots.push({ id: `${block}${String(n).padStart(2, '0')}`, block, number: n, category, status: 'available', reason: 'Eligible for assignment' })
   for (let n = 1; n <= 20; n++) add('A', n, 'Motorcycle')
   for (let n = 1; n <= 20; n++) add('B', n, 'Car')
-  for (let n = 1; n <= 20; n++) add('C', n, n <= 10 ? 'Van' : 'Other')
+  for (let n = 1; n <= 10; n++) add('C', n, 'Van')
+  for (let n = 1; n <= 10; n++) add('D', n, 'Other')
   return slots
 }
 
@@ -94,21 +95,22 @@ export function buildSeed(seededAt = Date.now()): State {
   const occupiedIds = [
     ...Array.from({ length: 12 }, (_, i) => `A${String(i + 1).padStart(2, '0')}`),
     ...Array.from({ length: 14 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`),
-    ...Array.from({ length: 11 }, (_, i) => `C${String(i + 1).padStart(2, '0')}`),
+    ...Array.from({ length: 10 }, (_, i) => `C${String(i + 1).padStart(2, '0')}`),
+    'D01',
   ]
   byId.get('A13')!.status = 'reserved'
   byId.get('A13')!.reason = 'Facility service hold'
   byId.get('B15')!.status = 'reserved'
   byId.get('B15')!.reason = 'Authorized facility hold'
-  byId.get('C12')!.status = 'unavailable'
-  byId.get('C12')!.reason = 'Surface maintenance'
+  byId.get('D02')!.status = 'unavailable'
+  byId.get('D02')!.reason = 'Surface maintenance'
 
   const fixedActive: Record<string, { n: number; entry: number }> = {
     A02: { n: 1, entry: at(20, 30) },
     A01: { n: 21, entry: at(18, 4) },
     B01: { n: 42, entry: at(19, 12) },
     C10: { n: 57, entry: at(19, 48) },
-    C11: { n: 71, entry: at(20, 6) },
+    D01: { n: 71, entry: at(20, 6) },
     // Overdue example: parked since early morning (>12 h before the snapshot).
     C09: { n: 88, entry: at(5, 40) },
   }
@@ -253,7 +255,7 @@ export function buildSeed(seededAt = Date.now()): State {
       actor: t.attendant,
     }),
   )
-  activity.push({ id: 'ev-c12', at: at(22, 8), event: 'Slot marked unavailable', ref: 'Block C — Slot 12', result: 'Maintenance · no assignment', actor: 'Administrator' })
+  activity.push({ id: 'ev-d02', at: at(22, 8), event: 'Slot marked unavailable', ref: 'Block D — Slot 02', result: 'Maintenance · no assignment', actor: 'Administrator' })
   Object.values(sessions)
     .filter((s) => s.status === 'active' && s.entry > at(21, 20))
     .forEach((s) => {

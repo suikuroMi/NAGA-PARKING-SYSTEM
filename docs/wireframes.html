@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naga Smart Park — Complete System Wireframes</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --paper: #ffffff;
+    --ink: #111827;
+    --muted: #4b5563;
+    --line: #9ca3af;
+    --line-dark: #374151;
+    --soft: #f9fafb;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.45;
+    font-size: 13px;
+  }
+
+  .viewer-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #111827;
+    color: #f9fafb;
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #374151;
+  }
+  .viewer-title { font-size: 14px; font-weight: 700; margin-right: auto; }
+  .viewer-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .viewer-btn {
+    background: transparent;
+    color: #d1d5db;
+    border: 1px solid #4b5563;
+    padding: 5px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .viewer-btn.active, .viewer-btn:hover {
+    background: #ffffff;
+    color: #111827;
+    border-color: #ffffff;
+  }
+
+  .gallery {
+    max-width: 1160px;
+    margin: 28px auto 64px;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+
+  .section-heading {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-top: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .wf-block { display: flex; flex-direction: column; gap: 10px; }
+  .wf-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .wf-meta strong { color: var(--ink); font-size: 13px; }
+
+  .wf {
+    background: var(--paper);
+    border: 1px solid var(--line-dark);
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .xbox {
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(to top right, transparent calc(50% - 0.6px), var(--line) calc(50% - 0.6px), var(--line) calc(50% + 0.6px), transparent calc(50% + 0.6px)),
+      linear-gradient(to bottom right, transparent calc(50% - 0.6px), var(--line) calc(50% - 0.6px), var(--line) calc(50% + 0.6px), transparent calc(50% + 0.6px));
+    background-color: var(--paper);
+    flex-shrink: 0;
+  }
+  .x16 { width: 16px; height: 16px; }
+  .x20 { width: 20px; height: 20px; }
+  .x28 { width: 28px; height: 28px; }
+  .x36 { width: 36px; height: 36px; }
+  .x40 { width: 40px; height: 40px; }
+  .x48 { width: 48px; height: 48px; }
+  .x64 { width: 64px; height: 64px; }
+  .x140 { width: 140px; height: 140px; }
+
+  .wf-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+  }
+  .wf-brand { display: flex; align-items: center; gap: 14px; }
+  .wf-brand-title { font-size: 16px; }
+  .wf-brand-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin-top: 2px; }
+  .wf-hdr-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+  .wf-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .wf-step { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .wf-step.active { color: var(--ink); font-weight: 700; }
+  .wf-step-num {
+    width: 22px; height: 22px;
+    border: 1px solid var(--line);
+    display: grid; place-items: center;
+    font-size: 10px;
+  }
+  .wf-step.active .wf-step-num { border-color: var(--ink); background: var(--soft); }
+
+  /* Exit 5-stage nav */
+  .exit-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--line-dark);
+    background: var(--soft);
+    font-size: 11px;
+    overflow-x: auto;
+  }
+  .exit-tab { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
+  .exit-tab.cur { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+  .exit-tab.done { color: var(--ink); }
+
+  .wf-body { padding: 28px 24px; }
+  .wf-body.compact { padding: 20px 24px; }
+
+  .wf-ftr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--muted);
+    gap: 12px;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    padding: 3px 10px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--paper);
+  }
+  .tag::before { content: '•'; }
+
+  .btn-wf {
+    border: 1px solid var(--line-dark);
+    padding: 10px 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--paper);
+  }
+  .btn-wf.primary { border-width: 2px; font-weight: 700; }
+  .btn-wf.full { width: 100%; }
+
+  .box { border: 1px solid var(--line); padding: 16px; background: var(--paper); }
+  .box.dashed { border-style: dashed; }
+
+  .h1 { font-size: 26px; line-height: 1.25; }
+  .h2 { font-size: 19px; line-height: 1.3; }
+  .h3 { font-size: 14px; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11px; }
+  .center { text-align: center; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .grid-hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 28px; align-items: center; }
+  .grid-exit { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .flex-center { display: flex; align-items: center; gap: 10px; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-12 { margin-top: 12px; }
+  .mt-16 { margin-top: 16px; }
+  .mt-24 { margin-top: 24px; }
+
+  .input-wf {
+    border: 1px solid var(--line);
+    padding: 9px 12px;
+    color: var(--muted);
+    font-size: 12px;
+    background: var(--soft);
+  }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .tbl th, .tbl td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; }
+  .tbl th { background: var(--soft); text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+
+  /* Admin 1:1 Shell matching AdminLayout.tsx */
+  .admin-shell { display: grid; grid-template-columns: 230px 1fr; min-height: 520px; }
+  .admin-side {
+    border-right: 1px solid var(--line-dark);
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--soft);
+  }
+  .admin-nav { display: flex; flex-direction: column; gap: 4px; }
+  .admin-nav-item {
+    border: 1px solid transparent;
+    padding: 6px 8px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+  }
+  .admin-nav-item.active {
+    border-color: var(--line-dark);
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .admin-main { display: flex; flex-direction: column; }
+  .admin-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .admin-content { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  .slot-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+  .slot-cell { border: 1px solid var(--line); padding: 7px 3px; text-align: center; font-size: 10px; }
+  .slot-cell.occ { background: #e5e7eb; border-color: var(--ink); font-weight: 700; }
+
+  .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 240px; margin: 12px auto 0; }
+  .pin-key { border: 1px solid var(--line-dark); padding: 10px; text-align: center; font-size: 13px; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 820px) {
+    .grid-2, .grid-3, .grid-4, .grid-hero, .grid-exit, .admin-shell { grid-template-columns: 1fr; }
+    .admin-side { border-right: none; border-bottom: 1px solid var(--line-dark); }
+  }
+  @media print {
+    body { background: #fff; }
+    .viewer-bar { display: none !important; }
+    .gallery { margin: 0; padding: 0; gap: 24px; }
+    .wf-block { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="viewer-bar">
+  <div class="viewer-title">Naga Smart Park — 1:1 System Wireframes</div>
+  <div class="viewer-tabs">
+    <button class="viewer-btn active" onclick="filterGroup('all', this)">All Views (29)</button>
+    <button class="viewer-btn" onclick="filterGroup('landing', this)">Landing (1)</button>
+    <button class="viewer-btn" onclick="filterGroup('kiosk', this)">Kiosk (7)</button>
+    <button class="viewer-btn" onclick="filterGroup('exit', this)">Exit Terminal (10)</button>
+    <button class="viewer-btn" onclick="filterGroup('admin', this)">Admin (11)</button>
+    <button class="viewer-btn" onclick="window.print()">Print / PDF</button>
+  </div>
+</div>
+
+<div class="gallery">
+
+  <!-- ==================== 1. LANDING ==================== -->
+  <div class="section-heading" data-group="landing">1. System Landing (/)</div>
+
+  <div class="wf-block" data-group="landing">
+    <div class="wf-meta"><strong>Landing Page</strong><span>Route: / · ParkingApp.tsx</span></div>
+    <div class="wf">
+      <div class="wf-body">
+        <div class="wf-brand">
+          <div class="xbox x40"></div>
+          <div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div>
+        </div>
+        <div class="h1 mt-24">QR-based parking, from entrance to exit.</div>
+        <p class="muted mt-12">One shared parking facility with [ 60 ] spaces. Issue a ticket at the kiosk, check it out at the exit terminal, and watch the administration dashboard update.</p>
+        <div class="grid-3 mt-24">
+          <div class="box stack">
+            <div class="flex-between"><div class="xbox x36"></div><span class="small muted">01</span></div>
+            <div class="h3">Entrance kiosk</div>
+            <p class="small muted">Drivers pick a vehicle type, receive an assigned bay and a QR ticket.</p>
+            <div class="flex-between mt-8" style="border-top:1px solid var(--line);padding-top:10px;"><span class="small">[ N ] spaces available now</span><span>&rarr;</span></div>
+          </div>
+          <div class="box stack">
+            <div class="flex-between"><div class="xbox x36"></div><span class="small muted">02</span></div>
+            <div class="h3">Exit terminal</div>
+            <p class="small muted">Attendants sign in with a PIN, scan the ticket, confirm payment and release the space.</p>
+            <div class="flex-between mt-8" style="border-top:1px solid var(--line);padding-top:10px;"><span class="small">[ Signed out / Attendant ]</span><span>&rarr;</span></div>
+          </div>
+          <div class="box stack">
+            <div class="flex-between"><div class="xbox x36"></div><span class="small muted">03</span></div>
+            <div class="h3">Administration</div>
+            <p class="small muted">Live facility map, slots, sessions, rates, transactions, reports, staff and settings.</p>
+            <div class="flex-between mt-8" style="border-top:1px solid var(--line);padding-top:10px;"><span class="small">[ Sign in to view reports ]</span><span>&rarr;</span></div>
+          </div>
+        </div>
+        <div class="box mt-16 flex-between small muted">
+          <span>Try it: open the kiosk and exit terminal in separate tabs, issue a ticket, then scan its QR at the exit.</span>
+          <span>Asia/Manila · [ Date ] · [ Timestamp ]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. KIOSK ==================== -->
+  <div class="section-heading" data-group="kiosk">2. Entrance Kiosk (/kiosk)</div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Step 1: Welcome</strong><span>kiosk/Kiosk.tsx · Welcome</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x40"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="wf-hdr-right"><div class="tag">Self-Service Entrance</div><div class="small">[ Timestamp ]</div></div>
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step active"><div class="wf-step-num">1</div>Welcome</div>
+        <div class="wf-step"><div class="wf-step-num">2</div>Select Vehicle Type</div>
+        <div class="wf-step"><div class="wf-step-num">3</div>Assigned Parking Location</div>
+        <div class="wf-step"><div class="wf-step-num">4</div>QR Ticket</div>
+      </div>
+      <div class="wf-body">
+        <div class="grid-hero">
+          <div class="stack">
+            <div class="tag" style="align-self:flex-start;">Park simply. Keep Naga moving.</div>
+            <div class="h1 mt-8">Welcome to Naga Smart Park.</div>
+            <p class="muted">Select your vehicle type to get your parking ticket.</p>
+            <div class="btn-wf primary mt-12">Start parking &rarr;</div>
+            <div class="small muted">Choose your vehicle. Get your space. Keep your QR ticket.</div>
+          </div>
+          <div class="box center stack" style="padding:36px 24px;align-items:center;">
+            <div class="xbox x64"></div>
+            <div class="flex-center mt-12"><div class="xbox x28"></div><div class="xbox x28"></div><div class="xbox x28"></div></div>
+            <div class="small mt-12">One ticket. One assigned space.</div>
+          </div>
+        </div>
+        <div class="grid-3 mt-24">
+          <div class="box flex-center"><div class="xbox x28"></div><div><div class="small muted">STEP 01</div><div>Select vehicle type</div></div></div>
+          <div class="box flex-center"><div class="xbox x28"></div><div><div class="small muted">STEP 02</div><div>Receive your location</div></div></div>
+          <div class="box flex-center"><div class="xbox x28"></div><div><div class="small muted">STEP 03</div><div>Keep your QR ticket</div></div></div>
+        </div>
+      </div>
+      <div class="wf-ftr"><span>[x] Self-service entrance · No personal information required</span><span>Static demonstration</span></div>
+    </div>
+  </div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Step 2: Select Vehicle Type</strong><span>kiosk/Kiosk.tsx · SelectVehicle</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x40"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="wf-hdr-right"><div class="tag">Self-Service Entrance</div><div class="small">[ Timestamp ]</div></div>
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="wf-step-num">x</div>Welcome</div>
+        <div class="wf-step active"><div class="wf-step-num">2</div>Select Vehicle Type</div>
+        <div class="wf-step"><div class="wf-step-num">3</div>Assigned Parking Location</div>
+        <div class="wf-step"><div class="wf-step-num">4</div>QR Ticket</div>
+      </div>
+      <div class="wf-body">
+        <div class="h1">Select your vehicle type</div>
+        <p class="muted mt-8">Tap the category that matches your vehicle.</p>
+        <div class="grid-4 mt-24">
+          <div class="box center stack" style="align-items:center;"><div class="xbox x48"></div><div class="h3 mt-8">Motorcycle</div><div class="small muted">Block A · 01–20</div><div class="tag mt-8">[ 20 ] spaces available</div></div>
+          <div class="box center stack" style="align-items:center;"><div class="xbox x48"></div><div class="h3 mt-8">Car</div><div class="small muted">Block B · 01–20</div><div class="tag mt-8">[ 20 ] spaces available</div></div>
+          <div class="box center stack" style="align-items:center;"><div class="xbox x48"></div><div class="h3 mt-8">Van</div><div class="small muted">Block C · 01–10</div><div class="tag mt-8">[ 10 ] spaces available</div></div>
+          <div class="box center stack" style="align-items:center;"><div class="xbox x48"></div><div class="h3 mt-8">Other</div><div class="small muted">Block D · 01–10</div><div class="tag mt-8">[ 10 ] spaces available</div></div>
+        </div>
+        <div class="box mt-16 small muted">[i] Only compatible, available spaces can be assigned · [ Timestamp ] selection snapshot · [ Total ] available spaces.</div>
+        <div class="flex-between mt-16"><div class="btn-wf">&larr; Back to welcome</div><span class="small muted">No plate number, name or phone number needed.</span></div>
+      </div>
+      <div class="wf-ftr"><span>[x] Self-service entrance · No personal information required</span><span>Static demonstration</span></div>
+    </div>
+  </div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Step 3: Assigned Parking Location</strong><span>kiosk/Kiosk.tsx · Assigned</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x40"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="wf-hdr-right"><div class="tag">Self-Service Entrance</div><div class="small">[ Timestamp ]</div></div>
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="wf-step-num">x</div>Welcome</div>
+        <div class="wf-step"><div class="wf-step-num">x</div>Select Vehicle Type</div>
+        <div class="wf-step active"><div class="wf-step-num">3</div>Assigned Parking Location</div>
+        <div class="wf-step"><div class="wf-step-num">4</div>QR Ticket</div>
+      </div>
+      <div class="wf-body grid-2">
+        <div class="stack">
+          <div class="tag" style="align-self:flex-start;">Temporary Hold</div>
+          <div class="h1 mt-8">[ Assigned Slot ]</div>
+          <div class="muted">From entrance to Block [ X ] · [ Category ]</div>
+          <div class="box mt-8"><div class="h3">Directions</div><p class="small muted mt-8">[ Turn-by-turn bay directions ]</p></div>
+          <div class="flex-between mt-12"><div class="btn-wf">Choose another vehicle</div><div class="btn-wf primary">Get QR ticket &rarr;</div></div>
+        </div>
+        <div class="box stack">
+          <div class="small muted">BLOCK [ X ] BAY STRIP</div>
+          <div class="grid-4 mt-8"><div class="slot-cell">[ 01 ]</div><div class="slot-cell occ">[ 02 ]<br>YOU</div><div class="slot-cell">[ 03 ]</div><div class="slot-cell">[ 04 ]</div></div>
+          <div class="xbox mt-12" style="height:110px;"></div>
+        </div>
+      </div>
+      <div class="wf-ftr"><span>[x] Self-service entrance · No personal information required</span><span>Static demonstration</span></div>
+    </div>
+  </div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Step 4a: QR Ticket</strong><span>kiosk/Kiosk.tsx · Ticket</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x40"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="wf-hdr-right"><div class="tag">Self-Service Entrance</div><div class="small">[ Timestamp ]</div></div>
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="wf-step-num">x</div>Welcome</div>
+        <div class="wf-step"><div class="wf-step-num">x</div>Select Vehicle Type</div>
+        <div class="wf-step"><div class="wf-step-num">x</div>Assigned Parking Location</div>
+        <div class="wf-step active"><div class="wf-step-num">4</div>QR Ticket</div>
+      </div>
+      <div class="wf-body grid-2">
+        <div class="box center stack" style="align-items:center;">
+          <div class="small muted">PARKING QR TICKET</div>
+          <div class="xbox x140 mt-8"></div>
+          <div class="h3 mt-8">[ Ticket ID ]</div>
+          <div class="small muted">Follow signs to Block [ X ] and park in Slot [ NN ].</div>
+        </div>
+        <div class="stack">
+          <div class="box stack">
+            <div class="flex-between"><span>Slot</span><strong>[ Assigned Slot ]</strong></div>
+            <div class="flex-between"><span>Vehicle</span><span>[ Category ]</span></div>
+            <div class="flex-between"><span>Entry Time</span><span>[ Entry Timestamp ]</span></div>
+            <div class="flex-between"><span>Initial Rate</span><span>PHP [ Rate ]</span></div>
+          </div>
+          <div class="btn-wf"><div class="xbox x16"></div>Print ticket</div>
+          <div class="btn-wf primary">Done &rarr;</div>
+        </div>
+      </div>
+      <div class="wf-ftr"><span>[x] Self-service entrance · No personal information required</span><span>Static demonstration</span></div>
+    </div>
+  </div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Step 4b: Ready to Park</strong><span>kiosk/Kiosk.tsx · Ready</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x40"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="wf-hdr-right"><div class="tag">Self-Service Entrance</div><div class="small">[ Timestamp ]</div></div>
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step"><div class="wf-step-num">x</div>Welcome</div>
+        <div class="wf-step"><div class="wf-step-num">x</div>Select Vehicle Type</div>
+        <div class="wf-step"><div class="wf-step-num">x</div>Assigned Parking Location</div>
+        <div class="wf-step active"><div class="wf-step-num">4</div>QR Ticket</div>
+      </div>
+      <div class="wf-body center stack" style="align-items:center;">
+        <div class="xbox x48"></div>
+        <div class="h1 mt-8">You're ready to park.</div>
+        <p class="muted">Your ticket is printed. Please take it with you.</p>
+        <div class="box flex-between mt-12" style="width:100%;text-align:left;">
+          <div class="flex-center"><div class="xbox x28"></div><div><div class="h2">[ Assigned Slot ]</div><div class="small muted">[ Category ] · [ Ticket ID ]</div></div></div>
+          <div class="tag">Active · Occupied</div>
+        </div>
+        <div class="mt-12">Enter, turn left into [ Block ], then use [ Bay ].</div>
+        <div class="btn-wf mt-12" style="min-width:340px;"><div class="xbox x16"></div>RETURN TO WELCOME</div>
+        <div class="box mt-8" style="min-width:340px;"><div>Next screen: Welcome</div><div class="small muted mt-8">Automatic kiosk reset after [ Count ] seconds · Ticket stays active.</div></div>
+      </div>
+      <div class="wf-ftr"><span>[x] Self-service entrance · No personal information required</span><span>Static demonstration</span></div>
+    </div>
+  </div>
+
+  <div class="wf-block" data-group="kiosk">
+    <div class="wf-meta"><strong>Kiosk — Category Full &amp; Idle Timeout Modal</strong><span>kiosk/Kiosk.tsx · Full &amp; IdlePrompt</span></div>
+    <div class="grid-2">
+      <div class="wf">
+        <div class="wf-hdr"><div class="wf-brand"><div class="xbox x28"></div><div>Naga Smart Park</div></div><div class="tag">Full</div></div>
+        <div class="wf-body compact center stack" style="align-items:center;">
+          <div class="xbox x40"></div>
+          <div class="h2">No [ Category ] spaces available</div>
+          <p class="small muted">All compatible spaces are occupied, reserved or unavailable.</p>
+          <div class="flex-center mt-8"><div class="btn-wf">Choose another</div><div class="btn-wf primary">Welcome</div></div>
+        </div>
+      </div>
+      <div class="wf">
+        <div class="wf-hdr"><div class="wf-brand"><div class="xbox x28"></div><div>Inactivity Notice</div></div><div class="tag">Modal</div></div>
+        <div class="wf-body compact center stack" style="align-items:center;">
+          <div class="h2">Are you still there?</div>
+          <p class="small muted">Temporary hold on [ Slot ID ] releases in [ Seconds ]s.</p>
+          <div class="flex-center mt-8"><div class="btn-wf">Release &amp; restart</div><div class="btn-wf primary">Continue</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 3. EXIT TERMINAL ==================== -->
+  <div class="section-heading" data-group="exit">3. Exit Terminal (/exit)</div>
+
+  <!-- Exit 1: Sign In -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Attendant Sign In (Bare Layout)</strong><span>exit/ExitGate.tsx · ExitSignIn</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="small right muted"><strong>Terminal 01</strong><br>Exit lane · Lane A</div>
+      </div>
+      <div class="wf-body">
+        <div class="h1">Attendant sign in</div>
+        <p class="muted mt-8">Select your name and enter your 4-digit PIN to open the exit terminal.</p>
+        <div class="grid-2 mt-24">
+          <div class="stack">
+            <div class="box flex-between"><span>Maria Santos · ATT-001 · Lane A</span><span>&rarr;</span></div>
+            <div class="box flex-between"><span>Joel Reyes · ATT-002 · Lane B</span><span>&rarr;</span></div>
+            <div class="box flex-between"><span>Ana Cruz · ATT-003 · Lane A</span><span>&rarr;</span></div>
+            <div class="box flex-between"><span>Mark Dela Cruz · ATT-004 · Lane B</span><span>&rarr;</span></div>
+          </div>
+          <div class="box center stack">
+            <div class="h3">Enter PIN for [ Attendant ]</div>
+            <div class="input-wf center">[ • • • • ]</div>
+            <div class="pin-grid">
+              <div class="pin-key">1</div><div class="pin-key">2</div><div class="pin-key">3</div>
+              <div class="pin-key">4</div><div class="pin-key">5</div><div class="pin-key">6</div>
+              <div class="pin-key">7</div><div class="pin-key">8</div><div class="pin-key">9</div>
+              <div class="pin-key">CLR</div><div class="pin-key">0</div><div class="pin-key">OK</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 2: Change PIN & Locked -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — First-Login Change PIN &amp; Locked Screen</strong><span>exit/ExitGate.tsx · ExitChangePin &amp; ExitLocked</span></div>
+    <div class="grid-2">
+      <div class="wf">
+        <div class="wf-hdr"><div class="wf-brand"><div class="xbox x28"></div><div>Naga Smart Park</div></div><div class="tag">Change PIN</div></div>
+        <div class="wf-body compact stack">
+          <div class="h2">Set a new 4-digit PIN</div>
+          <p class="small muted">First sign-in requires updating your temporary PIN.</p>
+          <div class="input-wf">[ New 4-digit PIN ]</div>
+          <div class="input-wf">[ Confirm PIN ]</div>
+          <div class="btn-wf primary full">Save PIN &amp; open terminal</div>
+        </div>
+      </div>
+      <div class="wf">
+        <div class="wf-hdr"><div class="wf-brand"><div class="xbox x28"></div><div>Naga Smart Park</div></div><div class="tag">Locked</div></div>
+        <div class="wf-body compact center stack">
+          <div class="h2">Exit terminal locked</div>
+          <p class="small muted">[ Attendant Name ] · [ Break / Idle / Manual ]</p>
+          <div class="input-wf">[ • • • • ]</div>
+          <div class="flex-between mt-8"><div class="btn-wf">Sign out</div><div class="btn-wf primary">Unlock</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 3: Dashboard / Scanner -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Dashboard &amp; QR Scanner</strong><span>Route: /exit · exit/Exit.tsx · Dashboard</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] · Menu &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab cur">[•] Exit Dashboard</div>
+        <div class="exit-tab">[ ] QR Scanner</div>
+        <div class="exit-tab">[ ] Parking Fee</div>
+        <div class="exit-tab">[ ] Payment Confirmation</div>
+        <div class="exit-tab">[ ] Receipt</div>
+        <span class="small muted" style="margin-left:auto;">Later stages unlock after review</span>
+      </div>
+      <div class="wf-body stack">
+        <div class="flex-between">
+          <div><div class="h1">Exit terminal</div><div class="muted small">Scan a driver's QR ticket or enter its ticket ID to begin checkout.</div></div>
+          <div class="tag">[ Timestamp ]</div>
+        </div>
+        <div class="grid-exit mt-8">
+          <div class="box stack center" style="align-items:center;">
+            <div class="h3">QR ticket scanner</div>
+            <div class="xbox" style="width:100%;height:170px;"></div>
+            <div class="btn-wf full"><div class="xbox x16"></div>Scan with camera</div>
+          </div>
+          <div class="stack">
+            <div class="box stack">
+              <div class="h3">Manual ticket lookup</div>
+              <div class="input-wf">[ Ticket ID e.g. NSP-0001 ]</div>
+              <div class="btn-wf primary full">Look up ticket &rarr;</div>
+            </div>
+            <div class="box flex-between">
+              <div><div class="h3">Lost ticket</div><div class="small muted">Find an active parking session</div></div>
+              <div class="btn-wf">Open &rarr;</div>
+            </div>
+            <div class="box grid-3 center">
+              <div><div class="small muted">ACTIVE</div><div class="h3">[ N ]</div></div>
+              <div><div class="small muted">TODAY TXNS</div><div class="h3">[ N ]</div></div>
+              <div><div class="small muted">COLLECTED</div><div class="h3">PHP [ N ]</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 4: Found -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Ticket Found</strong><span>Route: /exit/found · exit/Exit.tsx · Found</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab done">[✓] Exit Dashboard</div>
+        <div class="exit-tab cur">[•] QR Scanner</div>
+        <div class="exit-tab">[ ] Parking Fee</div>
+        <div class="exit-tab">[ ] Payment Confirmation</div>
+        <div class="exit-tab">[ ] Receipt</div>
+      </div>
+      <div class="wf-body stack">
+        <div class="flex-between"><div><div class="h1">Ticket found</div><div class="muted small">Verify vehicle category and entry details before calculating the fee.</div></div><div class="tag">[ Timestamp ]</div></div>
+        <div class="grid-exit">
+          <div class="box stack">
+            <div class="flex-between"><div class="h2">[ Ticket ID ]</div><div class="tag">[ Category ] · [ Slot ID ]</div></div>
+            <div class="grid-2 mt-8">
+              <div class="box"><div class="small muted">ENTRY TIME</div><div>[ Timestamp ]</div></div>
+              <div class="box"><div class="small muted">ELAPSED</div><div>[ Hh Mm ]</div></div>
+              <div class="box"><div class="small muted">BLOCK / SLOT</div><div>Block [ X ] · Slot [ NN ]</div></div>
+              <div class="box"><div class="small muted">RATE SNAPSHOT</div><div>[ Rate Version ]</div></div>
+            </div>
+          </div>
+          <div class="box stack" style="justify-content:space-between;">
+            <div class="small muted">Checkout locked to this exit terminal while under review.</div>
+            <div class="stack">
+              <div class="btn-wf primary full">Review parking fee &rarr;</div>
+              <div class="btn-wf full">Cancel checkout</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 5: Fee -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Parking Fee</strong><span>Route: /exit/fee · exit/Exit.tsx · Fee</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab done">[✓] Exit Dashboard</div>
+        <div class="exit-tab done">[✓] QR Scanner</div>
+        <div class="exit-tab cur">[•] Parking Fee</div>
+        <div class="exit-tab">[ ] Payment Confirmation</div>
+        <div class="exit-tab">[ ] Receipt</div>
+      </div>
+      <div class="wf-body grid-exit">
+        <div class="box stack">
+          <div class="h2">Fee calculation — [ Ticket ID ]</div>
+          <div class="flex-between"><span>Initial [ N ] min ([ Category ])</span><span>PHP [ N ]</span></div>
+          <div class="flex-between"><span>Additional increments</span><span>PHP [ N ]</span></div>
+          <div class="flex-between"><span>Lost ticket surcharge</span><span>PHP [ N ]</span></div>
+          <div class="flex-between" style="border-top:1px solid var(--line-dark);padding-top:10px;"><strong>TOTAL DUE</strong><strong class="h2">PHP [ Total ]</strong></div>
+        </div>
+        <div class="box stack" style="justify-content:space-between;">
+          <div class="small muted">Quoted at [ Timestamp ]. Slot [ Slot ID ] held for payment.</div>
+          <div class="stack">
+            <div class="btn-wf primary full">Proceed to payment &rarr;</div>
+            <div class="btn-wf full">Cancel checkout</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 6: Payment -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Payment Confirmation</strong><span>Route: /exit/payment · exit/Exit.tsx · Payment</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab done">[✓] Exit Dashboard</div>
+        <div class="exit-tab done">[✓] QR Scanner</div>
+        <div class="exit-tab done">[✓] Parking Fee</div>
+        <div class="exit-tab cur">[•] Payment Confirmation</div>
+        <div class="exit-tab">[ ] Receipt</div>
+      </div>
+      <div class="wf-body grid-exit">
+        <div class="box stack">
+          <div class="h3">Select payment method</div>
+          <div class="grid-3"><div class="btn-wf primary">Cash</div><div class="btn-wf">GCash</div><div class="btn-wf">Maya</div></div>
+          <div class="input-wf mt-8">[ Amount tendered (PHP) / Digital reference # ]</div>
+          <div class="flex-between"><span>Change due</span><strong>PHP [ Change ]</strong></div>
+        </div>
+        <div class="box stack" style="justify-content:space-between;">
+          <div><div class="small muted">AMOUNT DUE</div><div class="h1 mt-8">PHP [ Total ]</div><div class="small muted mt-8">[ Ticket ID ] · [ Slot ID ]</div></div>
+          <div class="btn-wf primary full">Confirm payment &amp; release slot</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 7: Receipt -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Official Receipt</strong><span>Route: /exit/receipt · exit/Exit.tsx · Receipt</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab done">[✓] Exit Dashboard</div>
+        <div class="exit-tab done">[✓] QR Scanner</div>
+        <div class="exit-tab done">[✓] Parking Fee</div>
+        <div class="exit-tab done">[✓] Payment Confirmation</div>
+        <div class="exit-tab cur">[•] Receipt</div>
+      </div>
+      <div class="wf-body grid-exit">
+        <div class="box stack">
+          <div class="center"><strong>OFFICIAL PARKING RECEIPT</strong><div class="small muted">[ Transaction ID ] · [ Timestamp ]</div></div>
+          <div class="flex-between"><span>Ticket / Slot</span><span>[ Ticket ID ] · [ Slot ID ]</span></div>
+          <div class="flex-between"><span>Method</span><span>[ Cash / GCash / Maya ]</span></div>
+          <div class="flex-between"><span>Amount Paid</span><strong>PHP [ Total ]</strong></div>
+          <div class="flex-between"><span>Attendant</span><span>[ Attendant Name ]</span></div>
+        </div>
+        <div class="stack" style="justify-content:center;">
+          <div class="btn-wf full"><div class="xbox x16"></div>Print / Save PDF</div>
+          <div class="btn-wf primary full">Return to exit dashboard &rarr;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 8: Lost Ticket -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Lost Ticket Lookup</strong><span>Route: /exit/lost · exit/LostTicket.tsx</span></div>
+    <div class="wf">
+      <div class="wf-hdr">
+        <div class="wf-brand"><div class="xbox x36"></div><div><div class="wf-brand-title">Naga Smart Park</div><div class="wf-brand-sub">Naga City People's Mall</div></div></div>
+        <div class="tag">Exit operations</div>
+        <div class="btn-wf">[ Attendant Name ] &#9662;</div>
+      </div>
+      <div class="exit-nav">
+        <div class="exit-tab done">[✓] Exit Dashboard</div>
+        <div class="exit-tab cur">[•] QR Scanner (Lost Ticket)</div>
+        <div class="exit-tab">[ ] Parking Fee</div>
+        <div class="exit-tab">[ ] Payment Confirmation</div>
+        <div class="exit-tab">[ ] Receipt</div>
+      </div>
+      <div class="wf-body stack">
+        <div class="flex-between"><div><div class="h1">Lost ticket lookup</div><div class="small muted">Select the active parking session to apply lost-ticket checkout.</div></div><div class="btn-wf">&larr; Back</div></div>
+        <div class="input-wf">[ Search by slot, category or ticket ID ]</div>
+        <table class="tbl">
+          <thead><tr><th>Ticket ID</th><th>Slot</th><th>Category</th><th>Entry Time</th><th>Lost Fee</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>[ NSP-0001 ]</td><td>A01</td><td>Motorcycle</td><td>[ Timestamp ]</td><td>PHP 100</td><td>[ Select ]</td></tr>
+            <tr><td>[ NSP-0002 ]</td><td>B03</td><td>Car</td><td>[ Timestamp ]</td><td>PHP 150</td><td>[ Select ]</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit 9: Exception States -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Exception Views (Invalid / Already Paid / Closed)</strong><span>exit/Exit.tsx</span></div>
+    <div class="grid-3">
+      <div class="wf"><div class="wf-body compact center stack"><div class="xbox x36" style="margin:0 auto;"></div><div class="h3">Ticket Not Found</div><p class="small muted">Code [ ID ] does not match an active session.</p><div class="btn-wf full">Scan again</div></div></div>
+      <div class="wf"><div class="wf-body compact center stack"><div class="xbox x36" style="margin:0 auto;"></div><div class="h3">Already Paid</div><p class="small muted">Ticket [ ID ] paid at [ Time ].</p><div class="btn-wf full">View receipt</div><div class="btn-wf full">Supervisor override</div></div></div>
+      <div class="wf"><div class="wf-body compact center stack"><div class="xbox x36" style="margin:0 auto;"></div><div class="h3">Session Closed</div><p class="small muted">Session [ ID ] was ended by admin.</p><div class="btn-wf full">Return to scanner</div></div></div>
+    </div>
+  </div>
+
+  <!-- Exit 10: Supervisor Override Modal -->
+  <div class="wf-block" data-group="exit">
+    <div class="wf-meta"><strong>Exit — Supervisor Override Modal</strong><span>exit/SupervisorOverride.tsx</span></div>
+    <div class="wf" style="max-width:520px;margin:0 auto;">
+      <div class="wf-body compact stack">
+        <div class="h3">Supervisor Override — Void &amp; Reopen</div>
+        <div class="input-wf">[ Reason e.g. Wrong payment method ]</div>
+        <div class="input-wf">[ Admin 4-digit PIN ]</div>
+        <div class="flex-between mt-8"><div class="btn-wf">Cancel</div><div class="btn-wf primary">Confirm override</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. ADMIN ==================== -->
+  <div class="section-heading" data-group="admin">4. Administration Console (/admin)</div>
+
+  <!-- Admin 1: Gate -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Sign In Gate</strong><span>admin/AdminGate.tsx</span></div>
+    <div class="wf" style="max-width:460px;margin:0 auto;">
+      <div class="wf-body center stack" style="align-items:center;">
+        <div class="xbox x48"></div>
+        <div class="h2">Administrator sign in</div>
+        <p class="small muted">Enter your 4-digit administrator PIN to continue.</p>
+        <div class="input-wf" style="width:100%;">[ • • • • ]</div>
+        <div class="btn-wf primary full">Unlock administration</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 2: Dashboard -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Dashboard</strong><span>Route: /admin · admin/OverviewPages.tsx · DashboardPage</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div><div class="small muted">People's Mall</div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+          <div class="box small mt-8"><strong>Facility</strong><br>People's Mall<br>60 spaces · 4 blocks</div>
+          <div class="btn-wf full small">Sign out</div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Dashboard</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div><div class="h1">Dashboard</div><div class="small muted">Live facility summary</div></div><div class="tag">Live</div></div>
+            <div class="grid-4">
+              <div class="box"><div class="small muted">AVAILABLE</div><div class="h2">[ N / 60 ]</div></div>
+              <div class="box"><div class="small muted">OCCUPIED</div><div class="h2">[ N ]</div></div>
+              <div class="box"><div class="small muted">ACTIVE SESSIONS</div><div class="h2">[ N ]</div></div>
+              <div class="box"><div class="small muted">REVENUE</div><div class="h2">PHP [ N ]</div></div>
+            </div>
+            <div class="grid-2">
+              <div class="box stack"><div class="h3">Blocks A–D</div><div class="small">Block A · Motorcycle [ N/20 ]</div><div class="small">Block B · Car [ N/20 ]</div><div class="small">Block C · Van [ N/10 ]</div><div class="small">Block D · Other [ N/10 ]</div></div>
+              <div class="box stack"><div class="h3">Recent Activity</div><div class="small muted">[ Time ] · Ticket issued [ ID ]</div><div class="small muted">[ Time ] · Payment confirmed [ ID ]</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 3: Map -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Parking Map</strong><span>Route: /admin/map · admin/OverviewPages.tsx · MapPage</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Parking Map</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="h1">Parking map</div>
+            <div class="grid-4"><div class="input-wf">[ Search ]</div><div class="input-wf">[ Block: All ]</div><div class="input-wf">[ Category: All ]</div><div class="input-wf">[ Status: All ]</div></div>
+            <div class="box stack">
+              <div class="flex-between"><strong>Block A — Motorcycle</strong><span class="small muted">20 spaces</span></div>
+              <div class="slot-grid"><div class="slot-cell occ">A01</div><div class="slot-cell">A02</div><div class="slot-cell">A03</div><div class="slot-cell">A04</div><div class="slot-cell">A05</div><div class="slot-cell">A06</div><div class="slot-cell">A07</div><div class="slot-cell">A08</div><div class="slot-cell">A09</div><div class="slot-cell">A10</div></div>
+            </div>
+            <div class="box stack">
+              <div class="flex-between"><strong>Block B (Car) · Block C (Van) · Block D (Other)</strong><span class="small muted">40 spaces</span></div>
+              <div class="slot-grid"><div class="slot-cell">B01</div><div class="slot-cell">B02</div><div class="slot-cell">C01</div><div class="slot-cell">C02</div><div class="slot-cell">D01</div><div class="slot-cell">D02</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 4: Slots & Edit Slot -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Parking Slot Management &amp; Edit Slot</strong><span>Routes: /admin/slots &amp; /admin/slots/[id] · admin/SlotPages.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Slots</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Parking slot management</div><div class="flex-center"><div class="btn-wf">+ Add slot</div><div class="btn-wf primary">+ Add block</div></div></div>
+            <table class="tbl">
+              <thead><tr><th>Slot</th><th>Block</th><th>Category</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td>A01</td><td>A</td><td>Motorcycle</td><td>Available</td><td>Eligible for assignment</td><td>[ Edit ]</td></tr>
+                <tr><td>B01</td><td>B</td><td>Car</td><td>Occupied</td><td>Active session</td><td>[ Edit ]</td></tr>
+                <tr><td>C01</td><td>C</td><td>Van</td><td>Available</td><td>Eligible for assignment</td><td>[ Edit ]</td></tr>
+                <tr><td>D01</td><td>D</td><td>Other</td><td>Available</td><td>Eligible for assignment</td><td>[ Edit ]</td></tr>
+              </tbody>
+            </table>
+            <div class="box dashed small"><strong>Edit Slot (/admin/slots/[id]):</strong> [ Category ] · [ Status ] · [ Reason ] · [ Save changes ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 5: Sessions -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Active Parking Sessions</strong><span>Route: /admin/sessions · admin/OverviewPages.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Active Sessions</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Active parking sessions</div><div class="tag">Active / Ended Tabs</div></div>
+            <table class="tbl">
+              <thead><tr><th>Ticket ID</th><th>Slot</th><th>Category</th><th>Entry Time</th><th>Elapsed</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td>[ NSP-0001 ]</td><td>A01</td><td>Motorcycle</td><td>[ Timestamp ]</td><td>[ 1h 12m ]</td><td>Active</td><td>[ End Session ]</td></tr>
+                <tr><td>[ NSP-0002 ]</td><td>B02</td><td>Car</td><td>[ Timestamp ]</td><td>[ 0h 45m ]</td><td>Active</td><td>[ End Session ]</td></tr>
+              </tbody>
+            </table>
+            <div class="box dashed small"><strong>End Session Modal:</strong> [ Reason ] + [ Admin PIN ] &rarr; [ Confirm End Session ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 6: Rates -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Parking Rates</strong><span>Route: /admin/rates · admin/RatesPage.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Parking Rates</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Parking rates</div><div class="btn-wf primary">Save rates</div></div>
+            <div class="grid-4">
+              <div class="box stack"><div class="h3">Motorcycle</div><div class="input-wf">Initial: PHP 20</div><div class="input-wf">Addl: PHP 10/hr</div><div class="input-wf">Lost: PHP 100</div></div>
+              <div class="box stack"><div class="h3">Car</div><div class="input-wf">Initial: PHP 40</div><div class="input-wf">Addl: PHP 20/hr</div><div class="input-wf">Lost: PHP 150</div></div>
+              <div class="box stack"><div class="h3">Van</div><div class="input-wf">Initial: PHP 50</div><div class="input-wf">Addl: PHP 25/hr</div><div class="input-wf">Lost: PHP 200</div></div>
+              <div class="box stack"><div class="h3">Other</div><div class="input-wf">Initial: PHP 60</div><div class="input-wf">Addl: PHP 30/hr</div><div class="input-wf">Lost: PHP 200</div></div>
+            </div>
+            <div class="box small muted">Rate Version History: [ Version ] · [ Effective Date ] · [ Updated By ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 7: Transactions -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Transaction History</strong><span>Route: /admin/transactions · admin/TransactionsPage.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Transaction History</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Transaction history</div><div class="input-wf">[ Search / Filter ]</div></div>
+            <table class="tbl">
+              <thead><tr><th>Txn ID</th><th>Ticket</th><th>Slot</th><th>Method</th><th>Amount</th><th>Attendant</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td>[ TXN-0001 ]</td><td>[ NSP-0001 ]</td><td>A01</td><td>Cash</td><td>PHP 20.00</td><td>Maria Santos</td><td>[ Void ] [ Refund ]</td></tr>
+                <tr><td>[ TXN-0002 ]</td><td>[ NSP-0002 ]</td><td>B01</td><td>GCash</td><td>PHP 40.00</td><td>Joel Reyes</td><td>[ Void ] [ Refund ]</td></tr>
+              </tbody>
+            </table>
+            <div class="box dashed small"><strong>Correction Modal (Void / Refund):</strong> [ Amount ] · [ Reason ] · [ Admin PIN ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 8: Reports -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Reports and Analytics</strong><span>Route: /admin/reports · admin/ReportsPage.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Reports</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Reports and analytics</div><div class="flex-center"><div class="btn-wf">Export CSV</div><div class="btn-wf primary">Print / PDF</div></div></div>
+            <div class="flex-between"><div class="flex-center"><div class="btn-wf">Today</div><div class="btn-wf">Yesterday</div><div class="btn-wf">Last 7 days</div></div><div class="input-wf">[ Date Range ]</div></div>
+            <div class="grid-4">
+              <div class="box"><div class="small muted">GROSS</div><div class="h3">PHP [ N ]</div></div>
+              <div class="box"><div class="small muted">VOIDS</div><div class="h3">PHP [ N ]</div></div>
+              <div class="box"><div class="small muted">REFUNDS</div><div class="h3">PHP [ N ]</div></div>
+              <div class="box"><div class="small muted">NET REVENUE</div><div class="h3">PHP [ N ]</div></div>
+            </div>
+            <div class="grid-2"><div class="box"><div class="h3">By Category</div><div class="small muted mt-8">Motorcycle / Car / Van / Other</div></div><div class="box"><div class="h3">By Attendant</div><div class="small muted mt-8">Counts &amp; Net totals</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 9: Attendants -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Attendant Accounts</strong><span>Route: /admin/attendants · admin/AttendantsPage.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Attendants</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Attendant accounts</div><div class="btn-wf primary">+ Add attendant</div></div>
+            <table class="tbl">
+              <thead><tr><th>ID</th><th>Name</th><th>Lane</th><th>Status</th><th>Last Access</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td>ATT-001</td><td>Maria Santos</td><td>Lane A</td><td>Offline</td><td>[ Timestamp ]</td><td>[ Manage ]</td></tr>
+                <tr><td>ATT-002</td><td>Joel Reyes</td><td>Lane B</td><td>Offline</td><td>[ Timestamp ]</td><td>[ Manage ]</td></tr>
+              </tbody>
+            </table>
+            <div class="box dashed small"><strong>Add / Manage Attendant Modal:</strong> [ Name ] · [ Email ] · [ Lane ] · [ Reset PIN ] · [ Disable / Force Sign Out ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin 10: Settings -->
+  <div class="wf-block" data-group="admin">
+    <div class="wf-meta"><strong>Admin — Settings</strong><span>Route: /admin/settings · admin/SettingsPage.tsx</span></div>
+    <div class="wf">
+      <div class="admin-shell">
+        <div class="admin-side">
+          <div class="wf-brand"><div class="xbox x28"></div><div><div class="small"><strong>Naga Smart Park</strong></div></div></div>
+          <div class="admin-nav">
+            <div class="admin-nav-item"><div class="xbox x16"></div>Dashboard</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Map</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Slot Management</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Active Parking Sessions</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Parking Rates</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Transaction History</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Reports and Analytics</div>
+            <div class="admin-nav-item"><div class="xbox x16"></div>Attendant Accounts</div>
+            <div class="admin-nav-item active"><div class="xbox x16"></div>Settings</div>
+          </div>
+        </div>
+        <div class="admin-main">
+          <div class="admin-topbar"><span>Parking operations / Settings</span><span>[ Timestamp ]</span></div>
+          <div class="admin-content">
+            <div class="flex-between"><div class="h1">Settings</div><div class="btn-wf primary">Save settings</div></div>
+            <div class="grid-2">
+              <div class="box stack"><div class="h3">Timeouts &amp; Hardware</div><div class="input-wf">Welcome reset: [ 15 ] sec</div><div class="input-wf">Idle timeout: [ 60 ] sec</div><div class="input-wf">Exit lock: [ 10 ] min</div></div>
+              <div class="box stack"><div class="h3">Administrator PIN</div><div class="input-wf">[ Current PIN ]</div><div class="input-wf">[ New 4-digit PIN ]</div><div class="btn-wf">Update Admin PIN</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function filterGroup(group, btn) {
+  document.querySelectorAll('.viewer-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('[data-group]').forEach(el => {
+    if (group === 'all' || el.dataset.group === group) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+}
+</script>
+</body>
+</html>
