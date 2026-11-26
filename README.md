@@ -22,6 +22,8 @@ Open `http://localhost:3100/kiosk`, `/exit`, or `/admin`. The launcher starts th
 
 The phone uses the laptop's Wi-Fi address. Camera scanning requires trusted HTTPS. Run `npm run https:setup` and restart the production server to enable port 3443. See [presentation guide](docs/PRESENTATION.md).
 
+For cloud deployment on **Render** (Next.js Web Service + Render PostgreSQL with `render.yaml` Blueprint), see [Render deployment guide](docs/RENDER.md).
+
 ## Current behavior
 
 - PostgreSQL stores slots, claims, sessions, rate snapshots, payments, refunds, voids, closures, staff, settings and audit records.

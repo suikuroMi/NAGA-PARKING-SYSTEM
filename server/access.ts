@@ -25,7 +25,16 @@ export function verifyDevice(raw: string): string | null {
 }
 
 export function clientIp(request: Request) {
-  return (request.headers.get('x-real-client-ip') || 'local').slice(0, 64)
+  const direct = request.headers.get('x-real-client-ip')
+  if (direct) return direct.slice(0, 64)
+  if (process.env.RENDER === 'true' || process.env.TRUST_PROXY === '1') {
+    const forwarded =
+      request.headers.get('true-client-ip') ||
+      request.headers.get('cf-connecting-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (forwarded) return forwarded.slice(0, 64)
+  }
+  return 'local'
 }
 
 export function cookie(request: Request, name: string) {
@@ -47,7 +56,8 @@ export async function issueSession(client: PoolClient, role: string, actor: stri
   return token
 }
 export function secureCookie(request: Request, name: string, value: string, maxAge: number) {
-  const secure = new URL(request.url).protocol==='https:' || request.headers.get('x-forwarded-proto')==='https'
+  const proto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  const secure = new URL(request.url).protocol==='https:' || proto==='https'
   return `${name}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
 }
 export function publicState(state: State, auth: Identity, device: string): State {

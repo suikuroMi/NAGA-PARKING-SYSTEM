@@ -4,6 +4,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Naga Smart Park | Naga City People\'s Mall',
   description: 'Smart QR-based parking management system for Naga City People\'s Mall',
+  icons: {
+    icon: '/logo.jpg',
+    apple: '/logo.jpg',
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/logo.jpg" type="image/jpeg" />
       </head>
       <body className="antialiased">
         {children}

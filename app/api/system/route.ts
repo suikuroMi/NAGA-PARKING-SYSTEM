@@ -14,7 +14,8 @@ const PIN_AUTH_COMMANDS = ['verifyAdminPin','signInExit','unlockExit','changeAdm
 function assertOrigin(request: Request) {
   if (request.headers.get('x-naga-request') !== '1') throw new RequestError('Request origin rejected.', 403)
   const origin = request.headers.get('origin')
-  const host = request.headers.get('host')
+  const trustProxy = process.env.RENDER === 'true' || process.env.TRUST_PROXY === '1'
+  const host = (trustProxy && request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()) || request.headers.get('host')
   if (!origin || !host) throw new RequestError('Request origin rejected.', 403)
   let parsed: URL
   try {

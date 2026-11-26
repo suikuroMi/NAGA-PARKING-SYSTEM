@@ -177,7 +177,7 @@ function Welcome({ onStart }: { onStart: () => void }) {
           <p className="mt-7 text-base text-muted">Choose your vehicle. Get your space. Keep your QR ticket.</p>
         </div>
         <div className="flex aspect-[466/400] flex-col items-center justify-center rounded-[28px] bg-brand-50">
-          <div className="grid size-[156px] place-items-center rounded-[22px] bg-brand text-[110px] leading-none text-white">P</div>
+          <Logo size="lg" />
           <div className="mt-7 flex gap-8 text-brand">
             {(['Motorcycle', 'Car', 'Van'] as Category[]).map((c) => {
               const Icon = VEHICLE_ICON[c]

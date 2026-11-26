@@ -9,11 +9,14 @@ const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).jo
 export { cx }
 
 export function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const dims = { sm: 'size-9 text-lg rounded-lg', md: 'size-[58px] text-[32px] rounded-xl', lg: 'size-40 text-[110px] rounded-[28px]' }[size]
+  const dims = { sm: 'size-9 rounded-lg', md: 'size-[58px] rounded-xl', lg: 'size-[156px] rounded-[22px]' }[size]
   return (
-    <div className={cx('grid shrink-0 place-items-center bg-brand font-normal leading-none text-white', dims)} aria-hidden>
-      P
-    </div>
+    <img
+      src="/logo.jpg"
+      alt="PRDHN Naga Smart Park logo"
+      className={cx('shrink-0 object-cover select-none', dims)}
+      draggable={false}
+    />
   )
 }
 

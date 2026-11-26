@@ -3,7 +3,7 @@ const next=require('next'),http=require('node:http'),https=require('node:https')
 const port=Number(process.env.PORT||3100);
 const app=next({dev:false,hostname:'0.0.0.0',port});
 const isLoopback=addr=>!addr||addr==='127.0.0.1'||addr==='::1'||addr==='::ffff:127.0.0.1';
-const CA_PATHS=new Set(['/naga-local-ca.crt','/naga-local-ca.cer','/favicon.svg']);
+const CA_PATHS=new Set(['/naga-local-ca.crt','/naga-local-ca.cer','/favicon.svg','/logo.jpg']);
 
 require('./preflight.cjs').check({launch:true}).then(failures=>{
  if(failures.length)throw Error('Startup checks failed. Resolve the messages above and retry.');

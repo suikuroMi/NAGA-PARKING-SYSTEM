@@ -9,6 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "render:build": "npm ci --include=dev && npm run build",
+    "render:start": "npm run db:setup && next start",
     "db:setup": "tsx scripts/database.ts",
     "db:demo": "tsx scripts/database.ts --demo",
     "test": "tsx --test tests/*.test.ts",
@@ -33,7 +35,8 @@
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -44,7 +47,6 @@
     "@types/react-dom": "^19",
     "postcss": "^8.5.32",
     "tailwindcss": "^4.0.0",
-    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

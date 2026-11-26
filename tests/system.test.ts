@@ -132,6 +132,10 @@ test('forged device cookies cannot hijack another kiosk session and public state
   assert.equal(forgedRead.data.state.admin.failedAttempts,0)
   assert.ok(forgedRead.data.state.attendants.every((a:any)=>a.failedAttempts===0&&a.lastAccess===undefined&&a.email===''))
   assert.ok(forgedRead.data.state.slots.every((s:any)=>s.reason===''))
+  const {dbConfig}=await import('../lib/db')
+  assert.equal(dbConfig('postgresql://u:p@127.0.0.1:5433/db').ssl,undefined)
+  assert.equal(dbConfig('postgresql://u:p@dpg-abc123-a/db').ssl,undefined)
+  assert.deepEqual(dbConfig('postgresql://u:p@dpg-abc123-a.singapore-postgres.render.com/db').ssl,{rejectUnauthorized:false})
 })
 
 test('concurrent payment and lost-response retry record one payment; expired sessions cannot pay',async()=>{

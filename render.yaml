@@ -1,0 +1,35 @@
+databases:
+  - name: naga-parking-db
+    databaseName: naga_parking
+    user: naga
+    region: singapore
+    plan: free
+
+services:
+  - type: web
+    name: naga-smart-parking
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm run render:build
+    startCommand: npm run render:start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: naga-parking-db
+          property: connectionString
+      - key: SEED_DEMO
+        value: "false"
+      - key: INITIAL_ADMIN_PIN
+        sync: false
+      - key: INITIAL_PIN_ATT_001
+        sync: false
+      - key: INITIAL_PIN_ATT_002
+        sync: false
+      - key: INITIAL_PIN_ATT_003
+        sync: false
+      - key: INITIAL_PIN_ATT_004
+        sync: false
